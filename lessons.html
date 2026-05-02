@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Where AI Got It Wrong — EKS, Terraform, DR</title>
+  <meta name="description" content="Every place Claude got the implementation wrong when building production EKS infrastructure — runtime failures, config that looked right but wasn't, and gaps only caught by human review." />
+  <meta property="og:title" content="Where AI Got It Wrong — EKS, Terraform, DR" />
+  <meta property="og:description" content="Every place Claude got the implementation wrong when building production EKS infrastructure — runtime failures, config that looked right but wasn't, and gaps only caught by human review." />
+  <meta property="og:url" content="https://jspoth.com/lessons" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://jspoth.com/lessons" />
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 800px;
+      margin: 60px auto;
+      padding: 0 20px;
+      color: #333;
+      line-height: 1.7;
+    }
+    h1 { font-size: 2rem; margin-bottom: 4px; }
+    h2 { font-size: 1.3rem; margin-top: 40px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+    h3 { font-size: 1rem; margin-top: 24px; color: #555; }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.88em;
+      line-height: 1.6;
+    }
+    .subtitle { color: #666; margin-top: 0; }
+    .error { color: #c0392b; font-weight: 600; }
+    .fix { color: #27ae60; font-weight: 600; }
+    ul { padding-left: 20px; }
+    li { margin-bottom: 6px; }
+    a { color: #2980b9; }
+    nav { position: sticky; top: 0; background: #fff; z-index: 100; margin-bottom: 40px; border-bottom: 1px solid #eee; padding: 12px 0; }
+    nav a { margin-right: 20px; color: #555; text-decoration: none; font-size: 0.9em; }
+    nav a:hover { color: #2980b9; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="index.html">EKS Platform</a>
+    <a href="dr.html">DR</a>
+    <a href="lessons.html">Observations</a>
+    <a href="cost-optimizer.html">Cost Optimizer</a>
+    <a id="contact-nav" href="#">Contact</a>
+  </nav>
+
+  <script>
+    setTimeout(() => {
+      const u = "jspotharaju", d = "gmail.com";
+      document.getElementById("contact-nav").href = "mailto:" + u + "@" + d;
+    }, 500);
+  </script>
+
+  <h1>Where AI Got It Wrong</h1>
+  <p style="font-size: 0.85em; color: #999;">April 26, 2026</p>
+  <p class="subtitle">Config that looked right, applied cleanly, and broke at runtime. Human caught each one.</p>
+
+  <p>
+    AI handled the heavy lifting — Terraform, IAM, Helm, the Go app, CI/CD. But passing <code>terraform plan</code>
+    doesn't mean it works. Every issue below was config that looked right, applied cleanly, and broke at runtime.
+  </p>
+
+  <h2>Karpenter CRDs — NodePool and NodeClass don't belong in the same root as the cluster</h2>
+  <p>
+    Claude put the NodePool and NodeClass in the same root module as the EKS cluster. Anyone familiar with how
+    Kubernetes CRDs work would catch this before even running plan — NodePool and NodeClass are custom resources
+    that don't exist until the Karpenter Helm chart has been deployed to the cluster. Terraform tries to validate
+    all resources at plan time, so it fails looking for CRDs that aren't there yet. Claude had to be told to move
+    Karpenter into its own module, applied separately after the cluster is up.
+  </p>
+
+  <h2>Wrong CPU architecture — first deploy failed</h2>
+  <p>
+    GitHub's standard runners are <code>linux/amd64</code>. Without an explicit <code>--platform</code> flag,
+    <code>docker build</code> inherits the runner's architecture — so the image ends up amd64 by default,
+    not by declaration. Easy to miss. No architecture constraint in the NodePool meant Karpenter picked
+    Graviton — cheaper, but ARM64. First deploy hit <code>exec format error</code>. Only visible in pod logs
+    after the node was already provisioned.
+  </p>
+
+  <h2>Ingress — cert ARN through the pipeline vs certificate autodiscovery</h2>
+  <p>
+    Claude set up the ingress to route traffic to the pod correctly — ALB scheme, target type, HTTPS redirect
+    all in place. Where it went wrong was the certificate setup. It passed the ACM cert ARN through the pipeline
+    as a Helm value, which meant separate ARNs for primary and DR and a manual value living in GitHub secrets.
+    The right approach from the start was <code>certificate-discovery: "true"</code> with a <code>host</code>
+    field — the LBC resolves the cert automatically from ACM, no ARN, no secrets, works identically across
+    both regions.
+  </p>
+
+  <h2>Two health checks, not one</h2>
+  <p>
+    Route 53 and the ALB target group are two independent health check systems. Route 53 decides when to
+    switch DNS. The ALB decides whether to send
+    traffic to a pod — it was checking <code>/</code> by default, app returns 404 there, ALB pulled the pod
+    from rotation and served 503. Pod was healthy the whole time, writing to DynamoDB fine. Route 53 pointed
+    to the right region, ALB thought the pod was down. One annotation in the ingress fixes it:
+    <code>alb.ingress.kubernetes.io/healthcheck-path: /health/live</code>.
+  </p>
+
+  <h2>DR environment copy-paste — AI didn't push back on the approach</h2>
+  <p>
+    Asked Claude to mirror dev to us-west-2 for DR. It created <code>environments/DR/</code> as a near-identical
+    copy of <code>environments/dev/</code> — same structure, different variable values. Applied fine. What it didn't
+    do was flag that any module change now needs to be made in two places, or mention that Terragrunt exists
+    specifically for this problem. Claude executes what you ask. It doesn't question whether there's a better way.
+    That's still on you. If your infrastructure runs only in AWS then it is worth exploring CloudFormation StackSets
+    — it handles multi-region deployments natively. Terragrunt is the pragmatic choice if you're already in
+    Terraform — define the structure once, stamp it out per environment.
+  </p>
+
+</body>
+</html>

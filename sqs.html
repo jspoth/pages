@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SQS, ESO &amp; Config Management on EKS</title>
+  <meta name="description" content="How SQS queues, External Secrets Operator, and SSM Parameter Store were wired together on EKS — including Terraform restructuring and real gotchas hit along the way." />
+  <meta property="og:title" content="SQS, ESO &amp; Config Management on EKS" />
+  <meta property="og:description" content="How SQS queues, External Secrets Operator, and SSM Parameter Store were wired together on EKS — including Terraform restructuring and real gotchas hit along the way." />
+  <meta property="og:url" content="https://jspoth.com/sqs" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://jspoth.com/sqs" />
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 800px;
+      margin: 60px auto;
+      padding: 0 20px;
+      color: #333;
+      line-height: 1.7;
+    }
+    h1 { font-size: 2rem; margin-bottom: 4px; }
+    h2 { font-size: 1.3rem; margin-top: 40px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+    h3 { font-size: 1rem; margin-top: 24px; color: #555; }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.88em;
+    }
+    .subtitle { color: #666; margin-top: 0; }
+    .error { color: #c0392b; font-weight: 600; }
+    .gotcha {
+      background: #fff8e1;
+      border-left: 4px solid #f0ad4e;
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin: 16px 0;
+    }
+    .tip {
+      background: #e8f5e9;
+      border-left: 4px solid #27ae60;
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin: 16px 0;
+    }
+    ol, ul { padding-left: 20px; }
+    li { margin-bottom: 8px; }
+    a { color: #2980b9; }
+    nav { margin-bottom: 40px; border-bottom: 1px solid #eee; padding-bottom: 12px; }
+    nav a { margin-right: 20px; color: #555; text-decoration: none; font-size: 0.9em; }
+    nav a:hover { color: #2980b9; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="index.html">EKS Platform</a>
+    <a href="design.html">System Design</a>
+    <a href="index.html#lessons">Lessons</a>
+    <a href="dr.html">DR</a>
+    <a id="contact-nav" href="#">Contact</a>
+  </nav>
+
+  <script>
+    setTimeout(() => {
+      const u = "jspotharaju", d = "gmail.com";
+      document.getElementById("contact-nav").href = "mailto:" + u + "@" + d;
+    }, 500);
+  </script>
+
+  <h1>SQS, ESO &amp; Config Management</h1>
+  <p style="font-size: 0.85em; color: #999;">Added: April 23, 2026</p>
+  <p class="subtitle">Moving from direct DynamoDB writes to an event-driven SQS pipeline, with External Secrets Operator handling config injection.</p>
+
+  <p>
+    I started with the Go app writing directly to DynamoDB on a ticker. Next step was to introduce SQS as the messaging layer —
+    the producer publishes events to a queue, and a separate consumer goroutine reads them and writes to DynamoDB.
+    Config values (queue URL, table name) are no longer baked into the deployment via GitHub Actions secrets —
+    they live in SSM Parameter Store and get injected into the pod via ESO.
+  </p>
+
+  <h2>1 — Terraform layer restructuring</h2>
+  <p>
+    Before adding SQS, the <code>environments/dev/general</code> root module had grown to include VPC, EKS, LBC,
+    IRSA roles, IAM policies, access entries, and a DynamoDB data source — all in one place. Adding messaging
+    resources on top of that would have made it worse.
+  </p>
+  <p>
+    The fix was to split general into purpose-specific layers, each with its own S3 state file:
+  </p>
+  <pre>environments/dev/
+  general/      # VPC, EKS, LBC, EKS access entries
+  datastores/   # DynamoDB — prevent_destroy, never touched by cluster ops
+  messaging/    # SQS queues, DLQs
+  addons/       # Karpenter, ESO, Reloader
+  permissions/  # IRSA roles + all app IAM policies</pre>
+  <p>
+    The ordering matters. <code>permissions</code> reads the EKS OIDC provider via a data source, so it has to run
+    after <code>general</code>. <code>addons</code> installs ESO and annotates its service account with an IRSA role ARN
+    from <code>permissions</code>, so it runs last in the Helm layer. The Makefile <code>deploy</code> target encodes this:
+  </p>
+  <pre>make deploy  # general → permissions → addons → messaging</pre>
+  <div class="tip">
+    <strong>Why separate state files?</strong> Blast radius. A botched <code>terraform destroy</code> on <code>messaging</code>
+    can't touch the EKS cluster. An apply on <code>permissions</code> doesn't refresh DynamoDB state. Each layer is independently
+    plannable and destroyable.
+  </div>
+
+  <h2>2 — SQS module with for_each queues</h2>
+  <p>
+    Rather than hardcoding a single queue resource, the SQS module takes a map of queues and uses <code>for_each</code>
+    to create a queue + DLQ pair for each entry. Adding a new queue means one line in <code>terraform.tfvars</code> — no
+    module changes, no IAM changes.
+  </p>
+  <pre># messaging/terraform.tfvars
+queues = {
+  app-events = {}
+  another-queue = { visibility_timeout = 60 }
+}</pre>
+  <p>
+    The IRSA policy in <code>permissions</code> uses a wildcard ARN to cover all queues matching the prefix —
+    so it also never needs to change when a new queue is added:
+  </p>
+  <pre>Resource = "arn:aws:sqs:us-east-2:&lt;account&gt;:dev-*"</pre>
+
+  <h2>3 — SSM + ESO + Reloader for config injection</h2>
+  <p>
+    The old approach was passing <code>DYNAMODB_TABLE</code> and <code>SQS_QUEUE_URL</code> as GitHub Actions
+    secrets, substituted into the deployment manifest via <code>sed</code> at deploy time. It worked but had two
+    problems: config lived in GitHub secrets instead of alongside the infrastructure, and changing a queue URL
+    required a full redeploy.
+  </p>
+  <p>The new flow:</p>
+  <ol>
+    <li>Terraform writes config values to SSM Parameter Store after creating each resource</li>
+    <li>ESO (External Secrets Operator) polls SSM every minute and syncs values into a Kubernetes Secret (<code>go-app-config</code>)</li>
+    <li>The pod reads the secret via <code>envFrom: secretRef</code></li>
+    <li>Reloader watches the secret — when ESO updates it, Reloader triggers a rolling restart</li>
+  </ol>
+  <pre># external-secret.yaml
+spec:
+  refreshInterval: 1m
+  data:
+    - secretKey: DYNAMODB_TABLE
+      remoteRef:
+        key: /dev/app/dynamodb/table-name
+    - secretKey: SQS_QUEUE_URL
+      remoteRef:
+        key: /dev/app/sqs/app-events-url</pre>
+  <pre># deployment.yaml
+envFrom:
+  - secretRef:
+      name: go-app-config
+annotations:
+  secret.reloader.stakater.com/reload: "go-app-config"</pre>
+  <div class="gotcha">
+    <strong>Gotcha: pod starts before ESO syncs the secret.</strong> The first time this was deployed, the pod came up
+    and started the SQS ticker — but <code>SQS_QUEUE_URL</code> was empty because the <code>go-app-config</code>
+    secret didn't exist yet. ESO hadn't finished its first sync. The ticker fired but the publish silently failed
+    because <code>SendMessage</code> was called with an empty queue URL.
+    The fix was to delete the pod so it restarted after the secret existed. Going forward, Reloader handles this —
+    when ESO creates or updates the secret, it triggers a restart automatically.
+  </div>
+  <div class="tip">
+    <strong>ESO needs its own IRSA role</strong> — separate from the app's role. ESO's service account
+    (<code>external-secrets</code> in the <code>external-secrets</code> namespace) needs <code>ssm:GetParameter</code>
+    on the parameter path. The app's IRSA role also gets <code>ssm:GetParameter</code> as a fallback, but in practice
+    the app reads config from env vars injected by ESO, not from SSM directly.
+  </div>
+
+  <h2>4 — Helm provider v3 syntax change</h2>
+  <p class="error">Error: Blocks of type "set" are not expected here. Did you mean to define argument "set"?</p>
+  <p>
+    The Helm Terraform provider v3 changed <code>set</code> from a block to an argument. The old syntax:
+  </p>
+  <pre># provider v2 — block syntax
+resource "helm_release" "external_secrets" {
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = data.aws_iam_role.eso.arn
+  }
+}</pre>
+  <p>The new syntax in provider v3:</p>
+  <pre># provider v3 — attribute syntax
+resource "helm_release" "external_secrets" {
+  set = [
+    {
+      name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+      value = data.aws_iam_role.eso.arn
+    }
+  ]
+}</pre>
+
+  <h2>5 — Karpenter picking undersized nodes</h2>
+  <p>
+    After adding ESO and Reloader, the cluster started hitting memory pressure. Pods were being evicted
+    with <code>The node was low on resource: memory. Threshold quantity: 100Mi, available: 50804Ki.</code>
+  </p>
+  <p>
+    Karpenter had provisioned <code>t3a.nano</code> instances — 512MB RAM — because the NodePool had no
+    instance size constraint and nano is the cheapest option that fits a pod's CPU/memory request.
+    With system pods, Karpenter, ESO, and Reloader all competing for memory, nano was nowhere near enough.
+  </p>
+  <p>
+    The fix was adding instance size requirements to the NodePool:
+  </p>
+  <pre>requirements = [
+  {
+    key      = "karpenter.k8s.aws/instance-category"
+    operator = "In"
+    values   = ["t"]
+  },
+  {
+    key      = "karpenter.k8s.aws/instance-size"
+    operator = "In"
+    values   = ["small", "medium", "large"]
+  }
+]</pre>
+  <div class="gotcha">
+    <strong>Gotcha:</strong> Karpenter doesn't warn you that a node is undersized for the workload — it just provisions
+    whatever fits the resource <em>requests</em>. If your pods don't have accurate memory requests set, Karpenter
+    will happily provision a nano and let the kubelet evict pods when actual usage exceeds available memory.
+  </div>
+
+  <h2>6 — helm_release cannot re-use a name that is still in use</h2>
+  <p class="error">Error: installation failed — cannot re-use a name that is still in use</p>
+  <p>
+    This came up during the first <code>make apply RESOURCE=addons</code> after adding ESO. The first pass of the
+    two-phase Karpenter apply had already installed ESO via Helm before Terraform tried to manage it.
+    Terraform didn't have it in state, so it tried to create it — but Helm already had a release by that name.
+  </p>
+  <p>
+    The fix is to import the existing Helm release into Terraform state:
+  </p>
+  <pre>terraform -chdir=environments/dev/addons import \
+  helm_release.external_secrets \
+  external-secrets/external-secrets</pre>
+
+</body>
+</html>

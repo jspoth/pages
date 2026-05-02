@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EKS Platform — Design &amp; Tradeoffs</title>
+  <meta name="description" content="Architecture decisions and tradeoffs behind a production EKS platform on AWS — covering Karpenter, IRSA, subnet tagging, and debugging lessons learned." />
+  <meta property="og:title" content="EKS Platform — Design &amp; Tradeoffs" />
+  <meta property="og:description" content="Architecture decisions and tradeoffs behind a production EKS platform on AWS — covering Karpenter, IRSA, subnet tagging, and debugging lessons learned." />
+  <meta property="og:url" content="https://jspoth.com/design" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://jspoth.com/design" />
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 800px;
+      margin: 60px auto;
+      padding: 0 20px;
+      color: #333;
+      line-height: 1.7;
+    }
+    h1 { font-size: 2rem; margin-bottom: 4px; }
+    h2 { font-size: 1.3rem; margin-top: 40px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+    h3 { font-size: 1rem; margin-top: 24px; color: #555; }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    blockquote {
+      border-left: 4px solid #ddd;
+      margin: 16px 0;
+      padding: 8px 16px;
+      color: #555;
+      font-style: italic;
+    }
+    .subtitle { color: #666; margin-top: 0; }
+    .tradeoff {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .pro {
+      background: #e8f5e9;
+      border-left: 4px solid #27ae60;
+      padding: 10px 14px;
+      border-radius: 4px;
+    }
+    .con {
+      background: #fce4ec;
+      border-left: 4px solid #e53935;
+      padding: 10px 14px;
+      border-radius: 4px;
+    }
+    .outcome {
+      background: #e3f2fd;
+      border-left: 4px solid #1e88e5;
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin: 16px 0;
+    }
+    .lesson {
+      background: #fff8e1;
+      border-left: 4px solid #f0ad4e;
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin: 16px 0;
+    }
+    .decision-meta {
+      font-size: 0.85em;
+      color: #888;
+      margin-bottom: 6px;
+    }
+    ol, ul { padding-left: 20px; }
+    li { margin-bottom: 8px; }
+    a { color: #2980b9; }
+    nav { margin-bottom: 40px; border-bottom: 1px solid #eee; padding-bottom: 12px; }
+    nav a { margin-right: 20px; color: #555; text-decoration: none; font-size: 0.9em; }
+    nav a:hover { color: #2980b9; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="index.html">EKS Platform</a>
+    <a href="design.html">System Design</a>
+    <a href="index.html#lessons">Lessons</a>
+    <a href="dr.html">DR</a>
+    <a id="contact-nav" href="#">Contact</a>
+  </nav>
+
+  <script>
+    setTimeout(() => {
+      const u = "jspotharaju", d = "gmail.com";
+      document.getElementById("contact-nav").href = "mailto:" + u + "@" + d;
+    }, 500);
+  </script>
+
+  <h1>EKS Platform — Design &amp; Tradeoffs</h1>
+  <p style="font-size: 0.85em; color: #999;">Added: April 23, 2026 &middot; Last updated: April 26, 2026</p>
+  <p class="subtitle">Built a production-style Kubernetes platform on AWS using EKS, Terraform, and Karpenter, focusing on <strong>secure workload isolation, efficient autoscaling, and repeatable infrastructure patterns</strong>.</p>
+
+  <h2>Architecture Overview</h2>
+  <p>
+    The platform is centered around a managed EKS control plane, with worker nodes provisioned dynamically based on workload demand.
+    All workloads run in private subnets — external traffic enters through an Application Load Balancer, and outbound
+    traffic routes through a NAT gateway. Pod-level AWS access uses IRSA so each workload gets exactly the permissions
+    it needs, nothing more.
+  </p>
+  <ul>
+    <li>VPC with public + private subnets across multiple AZs</li>
+    <li>EKS managed control plane</li>
+    <li>Worker nodes provisioned dynamically via Karpenter</li>
+    <li>IRSA for pod-level AWS access — no static credentials in the cluster</li>
+    <li>ALB ingress for external traffic via AWS Load Balancer Controller</li>
+    <li>CI/CD via GitHub Actions with OIDC → ECR → EKS</li>
+  </ul>
+  <blockquote>Treat the cluster as a platform — secure by default, scalable by design, and reproducible via Terraform.</blockquote>
+
+  <img src="architecture.svg" alt="Platform architecture diagram showing CI/CD pipeline, Route 53 failover routing, and multi-region AWS setup" style="width: 100%; max-width: 680px; display: block; margin: 24px auto; border-radius: 8px;" />
+
+  <h2>Key Decisions &amp; Tradeoffs</h2>
+
+  <h3>1 — Karpenter over Cluster Autoscaler</h3>
+  <p class="decision-meta">Problem: Cluster Autoscaler operates at the node group level, leading to inefficient bin-packing and slower scaling.</p>
+  <p>
+    Cluster Autoscaler works at the node group level — it scales predefined groups up or down based on pending pods.
+    In practice this means you're choosing instance types upfront, and the scaler picks from those options.
+    Karpenter operates differently: it looks at pending pod requirements and provisions exactly the right instance
+    for the workload — right size, right capacity type, right AZ — using EC2 APIs directly.
+  </p>
+  <div class="tradeoff">
+    <div class="pro">
+      <strong>+ Better bin-packing and cost efficiency</strong> — right-sized nodes per workload, no over-provisioning<br>
+      <strong>+ Faster scaling</strong> — provisions directly via EC2 API, no node group intermediary
+    </div>
+    <div class="con">
+      <strong>- Higher setup complexity</strong> — NodePool, NodeClass, Pod Identity, and CRD ordering all have gotchas<br>
+      <strong>- Less mature ecosystem</strong> — fewer community examples, docs cover the happy path only
+    </div>
+  </div>
+  <div class="outcome">
+    <strong>Outcome:</strong> More efficient node utilization and faster recovery from capacity issues. Failed or
+    undersized nodes were replaced automatically within ~90 seconds — no manual intervention needed.
+  </div>
+
+  <h3>2 — IRSA over static credentials</h3>
+  <p class="decision-meta">Problem: Static IAM credentials introduce security risks and operational overhead.</p>
+  <p>
+    The alternative — mounting IAM credentials as Kubernetes Secrets — means a single leaked secret gives access
+    to everything that role can do, across all pods. IRSA ties an IAM role to a specific Kubernetes service account
+    in a specific namespace, using the cluster's OIDC provider as the trust anchor. AWS injects short-lived credentials
+    into the pod automatically — no secrets stored in the cluster, no rotation needed.
+  </p>
+  <div class="tradeoff">
+    <div class="pro">
+      <strong>+ Fine-grained, least-privilege access</strong> — each workload gets its own role scoped to exactly what it needs<br>
+      <strong>+ No credential rotation</strong> — short-lived tokens injected automatically by AWS
+    </div>
+    <div class="con">
+      <strong>- Complex setup</strong> — OIDC provider, trust policy, and service account annotation all have to align exactly<br>
+      <strong>- Non-obvious debugging</strong> — a misconfigured trust policy gives a generic AccessDenied with no hint about which piece is wrong
+    </div>
+  </div>
+  <div class="outcome">
+    <strong>Outcome:</strong> Secure, scalable AWS access model. Permissions are managed declaratively via Terraform
+    without secret distribution — adding a new permission is a one-line policy change.
+  </div>
+
+  <h3>3 — Private subnets for worker nodes</h3>
+  <p class="decision-meta">Problem: Public nodes increase exposure and attack surface — nodes are directly reachable from the internet.</p>
+  <p>
+    Worker nodes in private subnets are not reachable from the internet directly. All inbound traffic goes through
+    the ALB in the public subnet, which terminates TLS and forwards to pods. Outbound traffic routes through a NAT
+    gateway. The tradeoff is added networking complexity — NAT gateways cost money, and subnet tagging has to be
+    done correctly for the ALB controller and Karpenter to discover the right subnets.
+  </p>
+  <div class="tradeoff">
+    <div class="pro">
+      <strong>+ Reduced attack surface</strong> — nodes not directly reachable from the internet<br>
+      <strong>+ Centralized ingress control</strong> — all external traffic funnels through the ALB
+    </div>
+    <div class="con">
+      <strong>- NAT gateway cost</strong> — outbound traffic incurs NAT charges<br>
+      <strong>- Increased networking complexity</strong> — subnet tagging, routing tables, and security groups all have to be right
+    </div>
+  </div>
+  <div class="outcome">
+    <strong>Outcome:</strong> Stronger security posture with predictable ingress/egress patterns. The complexity
+    is a one-time setup cost — once the VPC is provisioned correctly in Terraform it's just there.
+  </div>
+
+  <h3 id="terragrunt">4 — Vanilla Terraform vs Terragrunt for multi-region</h3>
+  <p class="decision-meta">Problem: Adding a DR region means duplicating every Terraform layer — same modules, different variable values per environment.</p>
+  <p>
+    The current structure has <code>environments/dev/</code> and <code>environments/DR/</code> as near-identical
+    copies. The modules are shared, but each environment has its own <code>backend.tf</code>, <code>providers.tf</code>,
+    <code>variables.tf</code>, and <code>main.tf</code> calling the same modules with different inputs.
+    Any change to a module interface — adding a variable, renaming a resource — requires updating both environments manually.
+    Adding a third environment (staging, prod) multiplies the problem.
+  </p>
+  <p>
+    Terragrunt solves this by defining the layer structure once in a <code>terragrunt.hcl</code> and generating
+    the per-environment boilerplate at runtime. Each environment becomes a thin config file:
+  </p>
+  <pre># environments/DR/general/terragrunt.hcl
+include "root" { path = find_in_parent_folders() }
+
+inputs = {
+  region       = "us-west-2"
+  cluster_name = "dr-eks-cluster"
+  environment  = "dr"
+}</pre>
+  <div class="tradeoff">
+    <div class="pro">
+      <strong>+ No copy-paste</strong> — one module definition, many environments<br>
+      <strong>+ DRY backend config</strong> — state bucket, key, and encryption defined once in root <code>terragrunt.hcl</code><br>
+      <strong>+ Dependency graph</strong> — <code>dependency</code> blocks replace manual output passing between layers
+    </div>
+    <div class="con">
+      <strong>- Another tool in the chain</strong> — team needs to learn Terragrunt on top of Terraform<br>
+      <strong>- Harder to debug</strong> — generated files add indirection, error messages point to generated code<br>
+      <strong>- Overkill for two environments</strong> — the payoff grows with the number of environments
+    </div>
+  </div>
+  <div class="outcome">
+    <strong>Decision:</strong> Kept vanilla Terraform for now — two environments doesn't justify the added tooling.
+    Terragrunt becomes the right call at three or more environments, or when the copy-paste burden starts causing
+    drift between environments.
+  </div>
+
+  <h2>Debugging Lessons</h2>
+
+  <h3>kubectl validation failing in CI after cluster recreate</h3>
+  <p class="error">Error: failed to download openapi: the server has asked for the client to provide credentials</p>
+  <p>
+    This showed up after recreating the EKS cluster. The IAM role existed, OIDC was set up,
+    <code>aws eks update-kubeconfig</code> was in the workflow — all looked right. What I missed is that EKS
+    access entries are cluster-specific. When you destroy and recreate a cluster, they don't carry over.
+    Since they weren't in Terraform, they were gone. Adding the access entry in Terraform fixed it and means
+    it survives any future cluster recreate.
+  </p>
+  <pre>resource "aws_eks_access_entry" "github_actions" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = "arn:aws:iam::&lt;account-id&gt;:role/github-actions-terraform"
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "github_actions" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = "arn:aws:iam::&lt;account-id&gt;:role/github-actions-terraform"
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  access_scope { type = "cluster" }
+}</pre>
+
+  <h3>IRSA — wiring up pod IAM access</h3>
+  <p>
+    For a pod to assume an IAM role, three things need to line up exactly: the EKS OIDC provider, an IAM role
+    with a trust policy scoped to the specific namespace and service account, and the Kubernetes service account
+    annotated with the role ARN. The part that got messy was the OIDC provider URL in the trust policy — it has
+    to exactly match the cluster's issuer URL. Easy to get wrong if you're copying from an old role or a different cluster.
+  </p>
+  <pre># modules/irsa/main.tf
+Condition = {
+  StringEquals = {
+    "${var.oidc_provider}:sub" = "system:serviceaccount:${var.namespace}:${var.service_account}"
+    "${var.oidc_provider}:aud" = "sts.amazonaws.com"
+  }
+}</pre>
+  <div class="lesson">
+    <strong>Lesson:</strong> IRSA failures are often trust-policy issues, not permission issues. Validate the OIDC URL,
+    namespace, and service account name before debugging the IAM policy itself.
+  </div>
+
+  <h3>AWS Load Balancer Controller — missing IAM permission</h3>
+  <p class="error">Error: AccessDenied — elasticloadbalancing:DescribeListenerAttributes</p>
+  <p>
+    The ALB wasn't getting provisioned. The IAM policy for the LBC was outdated — a newer version of LBC added
+    a requirement for <code>elasticloadbalancing:DescribeListenerAttributes</code> that wasn't in the policy file.
+    Added it and reapplied — ALB came up after that.
+  </p>
+  <div class="lesson">
+    <strong>Lesson:</strong> LBC IAM policies drift over time as new versions add permissions. Pin the policy to the
+    official upstream JSON for the specific LBC version you're running.
+  </div>
+
+  <h3>DynamoDB table already exists</h3>
+  <p class="error">Error: ResourceInUseException: Table already exists</p>
+  <p>
+    The DynamoDB table was initially created through the AWS console. When Terraform later tried to manage it,
+    it attempted to create a table that already existed. The fix was to import it into state rather than
+    delete and recreate:
+  </p>
+  <pre>terraform import module.dynamodb.aws_dynamodb_table.this app_events</pre>
+  <p>
+    A follow-on issue: DynamoDB has <code>prevent_destroy = true</code>, so <code>terraform destroy</code> on the
+    cluster stack would fail every time. The fix was moving DynamoDB into its own isolated root module
+    (<code>environments/dev/datastores</code>) with a separate state file — destroying the cluster no longer
+    touches DynamoDB at all.
+  </p>
+
+  <h3>CoreDNS failing on fresh cluster apply — LBC webhook ordering</h3>
+  <p class="error">Error: AdmissionRequestDenied — no endpoints available for service "aws-load-balancer-webhook-service"</p>
+  <p>
+    CoreDNS would fail every time a cluster was recreated. The LBC Helm chart installs a
+    <code>MutatingWebhookConfiguration</code> before its own pod is ready, and CoreDNS gets caught by it on the way up.
+    The fix was adding <code>before_compute = true</code> to the CoreDNS addon so it deploys before the node group —
+    and before LBC has a chance to interfere.
+  </p>
+  <pre>addons = {
+  coredns = { most_recent = true, before_compute = true }
+  vpc-cni = { most_recent = true, before_compute = true }
+}</pre>
+
+  <h3>Networking — services unreachable after cluster recreate</h3>
+  <p>
+    Services were unreachable despite identical configuration after recreating the EKS cluster.
+    The root cause was subnet tags (<code>kubernetes.io/role/elb</code>, <code>kubernetes.io/role/internal-elb</code>)
+    not being applied correctly after recreation, preventing the ALB controller from discovering which subnets
+    to place load balancers in.
+  </p>
+  <p>Fix: explicitly enforced subnet tagging in Terraform and validated post-deploy.</p>
+  <div class="lesson">
+    <strong>Lesson:</strong> Networking is a first-class concern. Subnet tagging and routing must be treated as part
+    of application correctness, not just infrastructure setup — validate them explicitly after every cluster recreate,
+    not just when something stops working.
+  </div>
+
+  <h3>IAM — pods failing to access AWS services</h3>
+  <p>
+    Pods received <code>AccessDenied</code> despite correct IAM policies. The root cause was an OIDC provider URL
+    mismatch (trailing slash) in the trust policy condition — the <code>StringEquals</code> check never matched,
+    so <code>AssumeRoleWithWebIdentity</code> was silently rejected.
+  </p>
+  <p>Fix: corrected the trust relationship to exactly match the issuer URL.</p>
+  <div class="lesson">
+    <strong>Lesson:</strong> IRSA failures are often trust-policy issues, not permission issues. Validate the identity
+    assumptions — OIDC URL, namespace, service account name — before debugging the IAM policy itself.
+  </div>
+
+  <h2>What I'd Improve Next</h2>
+  <ul>
+    <li><strong>Observability</strong> — introduce Prometheus, Grafana, and centralized logging early, not as an afterthought</li>
+    <li><strong>Cost controls</strong> — Spot strategy, resource limits, and AWS Budget alerts</li>
+    <li><strong>GitOps</strong> — adopt ArgoCD for declarative, auditable deployments instead of imperative <code>kubectl apply</code></li>
+    <li><strong>Multi-environment</strong> — extract reusable Terraform modules for clean dev/staging/prod separation</li>
+  </ul>
+
+</body>
+</html>

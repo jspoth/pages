@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Route 53 + Custom Domain Tutorial</title>
+  <meta name="description" content="Step-by-step guide to connecting a custom domain to an EKS-hosted site using Route 53, ACM certificates, and a Kubernetes Ingress — including DNS propagation verification." />
+  <meta property="og:title" content="Route 53 + Custom Domain Tutorial" />
+  <meta property="og:description" content="Step-by-step guide to connecting a custom domain to an EKS-hosted site using Route 53, ACM certificates, and a Kubernetes Ingress — including DNS propagation verification." />
+  <meta property="og:url" content="https://jspoth.com/route53" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://jspoth.com/route53" />
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 800px;
+      margin: 60px auto;
+      padding: 0 20px;
+      color: #333;
+      line-height: 1.7;
+    }
+    h1 { font-size: 2rem; margin-bottom: 4px; }
+    h2 { font-size: 1.3rem; margin-top: 40px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+    h3 { font-size: 1rem; margin-top: 24px; color: #555; }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.88em;
+    }
+    .subtitle { color: #666; margin-top: 0; }
+    .gotcha {
+      background: #fff8e1;
+      border-left: 4px solid #f0ad4e;
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin: 16px 0;
+    }
+    .tip {
+      background: #e8f5e9;
+      border-left: 4px solid #27ae60;
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin: 16px 0;
+    }
+    ol, ul { padding-left: 20px; }
+    li { margin-bottom: 8px; }
+    a { color: #2980b9; }
+    nav { margin-bottom: 40px; border-bottom: 1px solid #eee; padding-bottom: 12px; }
+    nav a { margin-right: 20px; color: #555; text-decoration: none; font-size: 0.9em; }
+    nav a:hover { color: #2980b9; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="index.html">EKS Platform</a>
+    <a href="design.html">System Design</a>
+    <a href="index.html#lessons">Lessons</a>
+    <a href="dr.html">DR</a>
+    <a id="contact-nav" href="#">Contact</a>
+  </nav>
+
+  <script>
+    setTimeout(() => {
+      const u = "jspotharaju", d = "gmail.com";
+      document.getElementById("contact-nav").href = "mailto:" + u + "@" + d;
+    }, 500);
+  </script>
+
+  <h1>Route 53 + Custom Domain</h1>
+  <p style="font-size: 0.85em; color: #999;">Added: April 4, 2026 &middot; Last updated: April 24, 2026</p>
+  <p class="subtitle">A step-by-step tutorial for pointing a custom domain at an EKS app running behind an ALB.</p>
+
+  <p>
+    This is something I hadn't done end to end before, so I'm documenting every step.
+    The goal was to get <code>app.jspoth.com</code> and <code>jspoth.com</code> both pointing to
+    a Go app running on EKS behind an AWS Application Load Balancer.
+  </p>
+
+  <h2>What you need before starting</h2>
+  <ul>
+    <li>A domain registered somewhere (Route 53, Namecheap, GoDaddy, etc.)</li>
+    <li>A hosted zone in Route 53 for that domain</li>
+    <li>An ALB already running (in our case provisioned by the AWS Load Balancer Controller)</li>
+    <li>The ALB DNS name — looks like <code>k8s-default-yourapp-xxxx.us-east-2.elb.amazonaws.com</code></li>
+  </ul>
+
+  <div class="tip">
+    If your domain is registered outside of AWS, you need to update the nameservers at your registrar
+    to point to the Route 53 NS records. Route 53 → Hosted zones → your domain → NS record shows the 4 nameservers.
+  </div>
+
+  <h2>Step 1 — Request an ACM Certificate</h2>
+  <p>
+    You need an SSL cert for HTTPS. AWS Certificate Manager (ACM) issues public certs for free.
+  </p>
+  <ol>
+    <li>Go to <strong>ACM → Request certificate → Request a public certificate</strong></li>
+    <li>
+      Add your domains:
+      <ul>
+        <li>Primary: <code>*.jspoth.com</code> (covers all subdomains like app, www, etc.)</li>
+        <li>Add another name: <code>jspoth.com</code> (covers the apex domain)</li>
+      </ul>
+    </li>
+    <li>Validation method: <strong>DNS validation</strong></li>
+    <li>Click Request</li>
+  </ol>
+
+  <div class="gotcha">
+    <strong>Gotcha:</strong> Make sure you're in the <strong>same AWS region as your ALB</strong> when requesting the cert.
+    ACM certs are regional and must match the ALB's region. I made the mistake of creating mine in us-west-2
+    when the ALB was in us-east-2 — had to delete it and start over.
+  </div>
+
+  <h3>Validating the certificate</h3>
+  <p>
+    After requesting, the cert will show as <strong>Pending validation</strong>.
+    ACM needs you to prove you own the domain by adding a CNAME record.
+  </p>
+  <ol>
+    <li>Open the certificate in ACM</li>
+    <li>Click <strong>"Create records in Route 53"</strong> — since your hosted zone is already there, it adds the CNAME automatically</li>
+    <li>Wait a few minutes — the cert status will change to <strong>Issued</strong></li>
+  </ol>
+
+  <div class="tip">
+    The <code>*.jspoth.com</code> and <code>jspoth.com</code> entries share the same CNAME validation record,
+    so you only need to create it once.
+  </div>
+
+  <h2>Step 2 — Update the Kubernetes Ingress</h2>
+  <p>
+    Once the cert is issued, update your ingress to use HTTPS. Add these annotations to <code>k8s/ingress.yaml</code>:
+  </p>
+  <pre>alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+alb.ingress.kubernetes.io/ssl-redirect: "443"
+alb.ingress.kubernetes.io/certificate-arn: &lt;your-cert-arn&gt;</pre>
+  <p>
+    Apply it: <code>kubectl apply -f k8s/ingress.yaml</code>
+  </p>
+  <p>
+    The LBC will update the ALB to add an HTTPS listener and redirect all HTTP traffic to HTTPS.
+  </p>
+
+  <div class="gotcha">
+    <strong>Gotcha:</strong> Don't hardcode the cert ARN in the file if it's in a public repo.
+    Use a GitHub environment variable (<code>ACM_CERT_ARN</code>) and substitute it in CI before applying via <code>sed</code>.
+  </div>
+
+  <h2>Step 3 — Add Route 53 DNS Records</h2>
+  <p>
+    Now point your domain at the ALB. Go to <strong>Route 53 → Hosted zones → jspoth.com → Create record</strong>.
+  </p>
+
+  <h3>For app.jspoth.com</h3>
+  <ol>
+    <li>Record name: <code>app</code></li>
+    <li>Record type: <code>A</code></li>
+    <li>Toggle <strong>Alias</strong> on</li>
+    <li>Route traffic to: <strong>Alias to Application and Classic Load Balancer</strong></li>
+    <li>Region: <code>us-east-2</code> (must match the ALB region)</li>
+    <li>Select your ALB from the dropdown — it shows the full DNS name</li>
+    <li>Click <strong>Create records</strong></li>
+  </ol>
+
+  <h3>For jspoth.com (apex)</h3>
+  <p>Same steps as above but leave the record name <strong>blank</strong>. That creates the apex record.</p>
+
+  <div class="gotcha">
+    <strong>Gotcha — apex record not committing:</strong> The first time I created the apex A record it showed up
+    in the Route 53 console but <code>dig jspoth.com @ns-1999.awsdns-57.co.uk</code> kept returning
+    <code>ANSWER: 0</code>. The record just wasn't saved properly. I deleted it and recreated it from scratch
+    and it worked on the second attempt. If you see this, don't wait around — just delete and recreate.
+  </div>
+
+  <h3>Verify the record committed (before moving on)</h3>
+  <p>Query Route 53's own nameserver directly after creating each record:</p>
+  <pre># Replace with one of your NS records from the hosted zone
+dig app.jspoth.com @ns-1999.awsdns-57.co.uk
+dig jspoth.com @ns-1999.awsdns-57.co.uk</pre>
+  <p>You want to see <code>ANSWER: 2</code> or more. If it's <code>ANSWER: 0</code>, the record didn't commit — delete and recreate.</p>
+
+  <div class="tip">
+    Use alias records (not plain A records with IPs) for ALBs. Alias records are free, update automatically
+    if the ALB IPs change, and have no TTL penalty.
+  </div>
+
+  <h3>For www.jspoth.com (optional)</h3>
+  <p>
+    If you're also hosting a static site on GitHub Pages at <code>jspoth.com</code> and want <code>www</code> to work,
+    add a CNAME record:
+  </p>
+  <ol>
+    <li>Record name: <code>www</code></li>
+    <li>Record type: <code>CNAME</code></li>
+    <li>Alias: <strong>No</strong></li>
+    <li>Value: <code>jspoth.github.io</code></li>
+    <li>TTL: 300</li>
+  </ol>
+  <p>Then in your GitHub repo → Settings → Pages, make sure the custom domain is set to <code>jspoth.com</code>.</p>
+
+  <h2>Step 4 — Verify DNS propagation</h2>
+  <p>After adding the records, verify they're resolving correctly:</p>
+  <pre>dig app.jspoth.com @ns-1999.awsdns-57.co.uk</pre>
+  <p>
+    Query Route 53's own nameserver directly — this bypasses your local DNS cache and tells you
+    immediately if the record is live. Look for <code>ANSWER: 2</code> (or more) in the response.
+  </p>
+
+  <div class="gotcha">
+    <strong>Gotcha:</strong> If <code>dig</code> returns <code>ANSWER: 0</code> even when querying Route 53 directly,
+    the record wasn't saved properly. Go back to the console, delete it, and recreate it.
+    This happened to me with the apex record — it showed in the UI but wasn't being served.
+  </div>
+
+  <h2>Step 5 — Test it</h2>
+  <pre>curl -I https://app.jspoth.com</pre>
+  <p>You should get a <code>200 OK</code> (or whatever your app returns at that path).</p>
+
+  <div class="gotcha">
+    <strong>Gotcha:</strong> If <code>dig</code> resolves correctly but <code>curl</code> still fails with
+    "Could not resolve host", your local DNS cache is stale. Flush it:
+    <pre>sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder</pre>
+  </div>
+
+  <h2>Terraform Management</h2>
+  <p>
+    The Route 53 records are now managed via Terraform in <code>environments/dev/dns/</code>.
+    Manual changes in the console will be overwritten on the next <code>make apply RESOURCE=dns</code>.
+  </p>
+  <ul>
+    <li><code>app.jspoth.com</code> — ALB alias record, managed by Terraform (uses <code>for_each</code> over <code>var.dns_records</code>)</li>
+    <li><code>jspoth.com</code> — GitHub Pages A record, managed by Terraform (<code>aws_route53_record.github_pages</code>)</li>
+  </ul>
+  <p>
+    The hosted zone ID is resolved via a <code>data "aws_route53_zone"</code> lookup — no hardcoded IDs.
+    The ALB DNS name and zone ID are resolved via a <code>data "aws_lb"</code> lookup using LBC tags.
+  </p>
+  <div class="tip">
+    If the apex A record is accidentally deleted in the console, just run <code>make apply RESOURCE=dns</code>
+    to restore it from Terraform state.
+  </div>
+  <p>To add a new subdomain pointing to the ALB, append it to <code>var.dns_records</code> in <code>variables.tf</code> and apply.</p>
+
+  <h2>Summary</h2>
+  <ul>
+    <li>ACM cert must be in the same region as the ALB</li>
+    <li>Use <code>*.domain.com</code> + apex as SAN — one cert covers everything</li>
+    <li>Use alias A records for ALBs, not hardcoded IPs</li>
+    <li>Query Route 53's nameserver directly with <code>dig @ns-xxxx</code> to bypass local cache</li>
+    <li>If a record shows in the console but doesn't resolve — delete and recreate it</li>
+    <li>Flush local DNS cache after propagation if curl still fails</li>
+  </ul>
+
+</body>
+</html>

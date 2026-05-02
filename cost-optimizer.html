@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI-Powered Cloud Cost Optimization — AWS + Claude + EKS</title>
+  <meta name="description" content="How I built a cloud cost optimizer that uses Claude on AWS Bedrock to scan AWS resources, reason about waste, and produce actionable savings recommendations." />
+  <meta property="og:title" content="AI-Powered Cloud Cost Optimization — AWS + Claude + EKS" />
+  <meta property="og:description" content="How I built a cloud cost optimizer that uses Claude on AWS Bedrock to scan AWS resources, reason about waste, and produce actionable savings recommendations." />
+  <meta property="og:url" content="https://jspoth.com/cost-optimizer" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://jspoth.com/cost-optimizer" />
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 800px;
+      margin: 60px auto;
+      padding: 0 20px;
+      color: #333;
+      line-height: 1.7;
+    }
+    h1 { font-size: 2rem; margin-bottom: 4px; }
+    h2 { font-size: 1.3rem; margin-top: 40px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+    h3 { font-size: 1rem; margin-top: 24px; color: #555; }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.88em;
+      line-height: 1.6;
+    }
+    blockquote {
+      border-left: 4px solid #ddd;
+      margin: 16px 0;
+      padding: 8px 16px;
+      color: #555;
+      font-style: italic;
+    }
+    .subtitle { color: #666; margin-top: 0; }
+    ul { padding-left: 20px; }
+    li { margin-bottom: 6px; }
+    a { color: #2980b9; }
+    nav { position: sticky; top: 0; background: #fff; z-index: 100; margin-bottom: 40px; border-bottom: 1px solid #eee; padding: 12px 0; }
+    nav a { margin-right: 20px; color: #555; text-decoration: none; font-size: 0.9em; }
+    nav a:hover { color: #2980b9; }
+    .label {
+      display: inline-block;
+      font-size: 0.75em;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .label-go { background: #e8f4fd; color: #1a6fa8; }
+    .label-tf { background: #f0eaff; color: #6741d9; }
+    .label-k8s { background: #e8f5e9; color: #2e7d32; }
+    .pipeline {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 20px 0;
+      font-size: 0.9em;
+    }
+    .pipeline-step {
+      background: #f4f4f4;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-weight: 500;
+    }
+    .pipeline-arrow { color: #aaa; font-size: 1.2em; }
+    .callout {
+      background: #fff8e1;
+      border-left: 4px solid #f9a825;
+      padding: 10px 16px;
+      margin: 20px 0;
+      border-radius: 0 4px 4px 0;
+      font-size: 0.95em;
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="index.html">EKS Platform</a>
+    <a href="dr.html">DR</a>
+    <a href="lessons.html">Observations</a>
+    <a href="cost-optimizer.html">Cost Optimizer</a>
+    <a id="contact-nav" href="#">Contact</a>
+  </nav>
+
+  <script>
+    setTimeout(() => {
+      const u = "jspotharaju", d = "gmail.com";
+      document.getElementById("contact-nav").href = "mailto:" + u + "@" + d;
+    }, 500);
+  </script>
+
+  <h1>AI for Cloud Cost Optimization</h1>
+  <p style="font-size: 0.85em; color: #999;">April 30, 2026</p>
+  <p class="subtitle">Scanned a dev AWS environment. Sent findings to Claude via Bedrock. Got back actionable analysis on where money is being wasted.</p>
+
+  <pre>Scanners:     NAT Gateway, ALB, EIP, EKS Nodes, Cluster
+Lookback:     7 days
+Findings:     5 resources flagged
+Est. waste:   ~$120–130/month</pre>
+
+  <h2>How it works</h2>
+  <p>
+    A Go service runs as a Kubernetes CronJob. On each run, scanners pull CloudWatch metrics for each resource
+    type — NAT gateways, ALBs, EIPs, EKS nodes, and the cluster. Findings are batched by resource type and sent
+    to Claude via the Bedrock Converse API. The model reasons about each resource — whether the spend is
+    justified, why, and what to do about it — and returns actionable recommendations.
+  </p>
+
+
+  <h2>The environment</h2>
+  <p>
+    Same platform as the <a href="index.html">EKS writeup</a> — a small dev setup, not a large fleet.
+    That's intentional. If Claude can surface actionable signal here, it'll be more useful at scale.
+  </p>
+  <pre>Region:      us-east-2
+Cluster:     dev-eks-cluster — 2 × t3a.small (Karpenter)
+App:         Go service, SQS consumer, DynamoDB
+Networking:  1 NAT Gateway, 3 EIPs (all associated)
+Ingress:     1 ALB (AWS Load Balancer Controller)</pre>
+
+  <h2>What Claude found</h2>
+
+  <h3>NAT Gateway — ~$32–35/month</h3>
+  <pre>nat-07d90a77be768a55a | BytesOutToDestination (7-day): ~335 MB (~48 MB/day)
+
+335 MB over 7 days is extremely low throughput. At ~$32.40/month fixed cost, this
+traffic volume does not justify the expense.
+
+1. Replace with VPC Endpoints — S3, DynamoDB, and SSM traffic can route for free
+   via Gateway Endpoints, eliminating the NAT entirely.
+2. Replace with NAT Instance — t4g.nano (~$3/month) saves ~$30/month for dev traffic.
+3. Delete if unused — if no active workload depends on it, remove it.</pre>
+
+  <h3>Application Load Balancer — ~$16–18/month</h3>
+  <pre>k8s-default-goapping-2282c37413 | RequestCount (7-day): 5,185 (~30 req/hour)
+
+~$16–18/month fixed cost regardless of traffic. At 30 requests/hour this ALB is
+cost-inefficient for what it's serving.
+
+1. Consolidate — if multiple low-traffic services exist, share one ALB using
+   host/path-based routing instead of a dedicated ALB per service.
+2. Delete if unused — remove the ALB and the associated Kubernetes ingress resource.</pre>
+
+  <h3>EKS Nodes — instance cost</h3>
+  <pre>i-099569743bf2795f3 | t3a.small | CPU utilization (7-day): 0%
+i-0f8b2793ff006a058 | t3.small  | CPU utilization (7-day): 0%
+
+0% CPU on both nodes over 7 days indicates idle or abandoned instances. Container
+Insights was not enabled on this cluster so metrics reflect missing telemetry, not
+confirmed zero utilization. Enable Container Insights to get accurate per-node data
+before acting.</pre>
+
+  <h3>EKS Cluster — ~$73/month</h3>
+  <pre>dev-eks-cluster | Running nodes: 2
+
+EKS control plane costs ~$73/month regardless of node count or workload.
+For a dev environment, creating the cluster on-demand (spin up via Terraform,
+tear down when idle) would eliminate this fixed cost entirely.</pre>
+
+  <h2>What's next</h2>
+  <ul>
+    <li>SNS email report after each run — currently logs to stdout only</li>
+    <li>Enable Container Insights for accurate node CPU and memory metrics</li>
+    <li>Fargate experiment — same scanner binary, EventBridge schedule, no cluster dependency</li>
+  </ul>
+
+</body>
+</html>

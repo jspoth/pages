@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Karpenter on EKS — Gotchas</title>
+  <meta name="description" content="Real gotchas running Karpenter on EKS: SecurityGroupsReady failures, exec format errors, Spot nodes ignored, Pod Identity setup, and topology spread issues during rolling updates." />
+  <meta property="og:title" content="Karpenter on EKS — Gotchas" />
+  <meta property="og:description" content="Real gotchas running Karpenter on EKS: SecurityGroupsReady failures, exec format errors, Spot nodes ignored, Pod Identity setup, and topology spread issues during rolling updates." />
+  <meta property="og:url" content="https://jspoth.com/karpenter" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://jspoth.com/karpenter" />
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 800px;
+      margin: 60px auto;
+      padding: 0 20px;
+      color: #333;
+      line-height: 1.7;
+    }
+    h1 { font-size: 2rem; margin-bottom: 4px; }
+    h2 { font-size: 1.3rem; margin-top: 40px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+    h3 { font-size: 1rem; margin-top: 24px; color: #555; }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.88em;
+    }
+    .subtitle { color: #666; margin-top: 0; }
+    .gotcha {
+      background: #fff8e1;
+      border-left: 4px solid #f0ad4e;
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin: 16px 0;
+    }
+    .tip {
+      background: #e8f5e9;
+      border-left: 4px solid #27ae60;
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin: 16px 0;
+    }
+    ol, ul { padding-left: 20px; }
+    li { margin-bottom: 8px; }
+    a { color: #2980b9; }
+    nav { margin-bottom: 40px; border-bottom: 1px solid #eee; padding-bottom: 12px; }
+    nav a { margin-right: 20px; color: #555; text-decoration: none; font-size: 0.9em; }
+    nav a:hover { color: #2980b9; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="index.html">EKS Platform</a>
+    <a href="design.html">System Design</a>
+    <a href="index.html#lessons">Lessons</a>
+    <a href="dr.html">DR</a>
+    <a id="contact-nav" href="#">Contact</a>
+  </nav>
+
+  <script>
+    setTimeout(() => {
+      const u = "jspotharaju", d = "gmail.com";
+      document.getElementById("contact-nav").href = "mailto:" + u + "@" + d;
+    }, 500);
+  </script>
+
+  <h1>Karpenter on EKS — Gotchas</h1>
+  <p style="font-size: 0.85em; color: #999;">Added: April 20, 2026 · Last updated: April 24, 2026</p>
+  <p class="subtitle">Things that weren't obvious when setting up Karpenter 1.11.1 on EKS with Terraform.</p>
+
+  <p>
+    The Karpenter docs cover the happy path well but there are a few things that will silently break your setup
+    and aren't easy to diagnose the first time. These are the ones I ran into.
+  </p>
+
+  <h2>1 — SecurityGroupsReady=False with no obvious cause</h2>
+  <p>
+    After deploying everything, the NodePool stayed in a not-ready state. Running <code>kubectl describe nodepool general</code>
+    showed this in the events:
+  </p>
+  <pre>NodeClassReady: False — SecurityGroupsReady=False</pre>
+  <p>
+    Karpenter discovers which security groups to use by looking for a tag:
+    <code>karpenter.sh/discovery = &lt;cluster-name&gt;</code>. The subnets need this tag too, but that part is
+    usually documented. The security group tag is not mentioned as clearly.
+  </p>
+  <p>
+    The fix is to add <code>node_security_group_tags</code> to your EKS Terraform module:
+  </p>
+  <pre>node_security_group_tags = {
+  "karpenter.sh/discovery" = var.cluster_name
+}</pre>
+  <div class="gotcha">
+    <strong>Gotcha:</strong> Verify the tag actually exists after applying — don't assume it was set.
+    <pre>aws ec2 describe-security-groups \
+  --filters "Name=tag-key,Values=karpenter.sh/discovery" \
+  --query 'SecurityGroups[*].{ID:GroupId,Tags:Tags}' \
+  --region us-east-2</pre>
+    If it returns <code>[]</code>, the tag isn't there — check that your apply completed cleanly.
+  </div>
+
+  <h2>2 — exec format error on new nodes</h2>
+  <p>
+    Pods were scheduled on a new Karpenter-provisioned node but immediately failed with:
+  </p>
+  <pre>exec ./main: exec format error</pre>
+  <p>
+    Karpenter picks the cheapest instance that fits the pod's resource request. In us-east-2, that's often a
+    Graviton (ARM64) instance like <code>t4g.small</code>. If your container image was built for <code>amd64</code>,
+    it won't run on ARM — and the only indication is this error in the pod logs.
+  </p>
+  <p>
+    Fix: add an architecture requirement to your NodePool:
+  </p>
+  <pre>requirements = [
+  {
+    key      = "kubernetes.io/arch"
+    operator = "In"
+    values   = ["amd64"]
+  }
+]</pre>
+  <div class="tip">
+    Alternatively, build a multi-arch image using <code>docker buildx --platform linux/amd64,linux/arm64</code>.
+    That lets Karpenter freely choose Graviton instances which are cheaper for the same workload.
+  </div>
+
+  <h2>3 — Spot nodes were never used</h2>
+  <p>
+    Even with a spot NodePool configured, all nodes provisioned were on-demand. No errors or warnings anywhere.
+    The reason is that the spot NodePool has a <code>NoSchedule</code> taint — pods without a matching toleration
+    are simply ignored by that pool and fall through to the on-demand pool. Karpenter doesn't surface this anywhere,
+    it just silently picks on-demand.
+  </p>
+
+  <h2>4 — Karpenter uses Pod Identity, not IRSA</h2>
+  <p>
+    Most pod-level IAM access in this project uses IRSA (IAM Roles for Service Accounts), which requires wiring up
+    an OIDC trust policy manually. Karpenter uses the newer <strong>EKS Pod Identity</strong> mechanism instead —
+    AWS handles the credential injection automatically once the <code>eks-pod-identity-agent</code> addon is running
+    and <code>create_pod_identity_association = true</code> is set in the Karpenter module.
+  </p>
+  <pre>module "karpenter" {
+  source  = "terraform-aws-modules/eks/aws//modules/karpenter"
+  version = "~> 21.0"
+
+  cluster_name                    = var.cluster_name
+  create_pod_identity_association = true
+  namespace                       = "karpenter"
+  ...
+}</pre>
+  <div class="gotcha">
+    <strong>Gotcha:</strong> Pod Identity requires the <code>eks-pod-identity-agent</code> addon to be installed on the cluster.
+    Without it, Karpenter pods can't assume their IAM role and will fail to start — with no obvious error pointing at the addon.
+    <pre>addons = {
+  eks-pod-identity-agent = { most_recent = true }
+}</pre>
+  </div>
+
+  <h2>5 — Karpenter lives in a separate Terraform root</h2>
+  <p>
+    The NodeClass and NodePool manifests depend on Karpenter's CRDs being registered in the cluster. Those CRDs only
+    exist after the Karpenter Helm chart has been deployed. This means you can't put Karpenter in the same root module
+    as the EKS cluster — <code>terraform plan</code> will fail trying to resolve CRDs that don't exist yet.
+  </p>
+  <p>
+    The fix is a separate root module (<code>environments/dev/addons</code>) with its own state file that applies after
+    the cluster is up. The deploy order is:
+  </p>
+  <ol>
+    <li><code>environments/dev/general</code> — VPC, EKS cluster, LBC, IRSA</li>
+    <li><code>environments/dev/addons</code> — Karpenter Helm + NodeClass + NodePool</li>
+  </ol>
+  <div class="tip">
+    This is the same reason DynamoDB lives in <code>environments/dev/datastores</code> — isolating things that have
+    different lifecycle requirements from the main cluster stack prevents <code>terraform destroy</code> from being
+    blocked by resources you didn't intend to touch.
+  </div>
+
+  <h2>6 — Topology spread constraints produce bad AZ spread during rolling updates</h2>
+  <p>
+    With <code>topologySpreadConstraints</code> set to spread pods across AZs (<code>maxSkew: 1</code>,
+    <code>whenUnsatisfiable: DoNotSchedule</code>), a rolling update still produced a 4+1 distribution
+    across 2 AZs instead of the expected 3+2. Restarting the rollout reproduced the same result.
+  </p>
+  <p>
+    The cause: the scheduler counts <strong>all</strong> pods matching the <code>labelSelector</code> when evaluating
+    the spread — including old pods from the previous replicaset that are still terminating. As new pods are
+    scheduled against a mixed count of old+new pods, the spread decisions are skewed. By the time old pods finish
+    terminating, the final distribution is already locked in and violates the intended balance.
+  </p>
+  <div class="gotcha">
+    <strong>Gotcha:</strong> <code>whenUnsatisfiable: DoNotSchedule</code> only prevents making a violation
+    worse at the moment of scheduling. It does not evict already-running pods to rebalance after the fact.
+    A bad spread caused by a rolling update will persist until pods are rescheduled again.
+  </div>
+  <p>
+    Fix: add <code>matchLabelKeys</code> with <code>pod-template-hash</code>. This tells the scheduler to
+    scope the spread calculation to pods from the <em>current</em> replicaset only — old terminating pods
+    become invisible to the constraint.
+  </p>
+  <pre>topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    matchLabelKeys:
+      - pod-template-hash
+    labelSelector:
+      matchLabels:
+        app: go-app</pre>
+  <p>
+    <code>pod-template-hash</code> is automatically added by Kubernetes to every pod in a replicaset.
+    Each rollout gets a unique hash, so the new pods evaluate spread only against each other — producing
+    a clean 3+2 distribution from the start.
+  </p>
+  <div class="tip">
+    <code>matchLabelKeys</code> is GA in Kubernetes 1.29+. EKS 1.31 supports it without any feature gates.
+  </div>
+
+</body>
+</html>

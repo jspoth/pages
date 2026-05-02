@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-Region DR — Built by AI, Validated by Test</title>
+  <meta name="description" content="AI mirrored the primary infrastructure to us-west-2. A live failover test validated it. Route 53 failed over in 61 seconds with no manual intervention — here's the full timeline." />
+  <meta property="og:title" content="Multi-Region DR — Built by AI, Validated by Test" />
+  <meta property="og:description" content="AI mirrored the primary infrastructure to us-west-2. A live failover test validated it. Route 53 failed over in 61 seconds with no manual intervention — here's the full timeline." />
+  <meta property="og:url" content="https://jspoth.com/dr" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://jspoth.com/dr" />
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 800px;
+      margin: 60px auto;
+      padding: 0 20px;
+      color: #333;
+      line-height: 1.7;
+    }
+    h1 { font-size: 2rem; margin-bottom: 4px; }
+    h2 { font-size: 1.3rem; margin-top: 40px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+    h3 { font-size: 1rem; margin-top: 24px; color: #555; }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.88em;
+    }
+    .subtitle { color: #666; margin-top: 0; }
+    .error { color: #c0392b; font-weight: 600; }
+    .gotcha {
+      background: #fff8e1;
+      border-left: 4px solid #f0ad4e;
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin: 16px 0;
+    }
+    .tip {
+      background: #e8f5e9;
+      border-left: 4px solid #27ae60;
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin: 16px 0;
+    }
+    ol, ul { padding-left: 20px; }
+    li { margin-bottom: 8px; }
+    a { color: #2980b9; }
+    nav { position: sticky; top: 0; background: #fff; z-index: 100; margin-bottom: 40px; border-bottom: 1px solid #eee; padding: 12px 0; }
+    nav a { margin-right: 20px; color: #555; text-decoration: none; font-size: 0.9em; }
+    nav a:hover { color: #2980b9; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="index.html">EKS Platform</a>
+    <a href="dr.html">DR</a>
+    <a href="lessons.html">Observations</a>
+    <a href="cost-optimizer.html">Cost Optimizer</a>
+    <a id="contact-nav" href="#">Contact</a>
+  </nav>
+
+  <script>
+    setTimeout(() => {
+      const u = "jspotharaju", d = "gmail.com";
+      document.getElementById("contact-nav").href = "mailto:" + u + "@" + d;
+    }, 500);
+  </script>
+
+  <h1>DR Test Results</h1>
+  <p style="font-size: 0.85em; color: #999;">Tested: April 26, 2026</p>
+  <p class="subtitle">Scaled the primary to 0 and watched what happened. Route 53 failed over automatically. No manual steps.</p>
+
+  <pre>RTO:      83 seconds (Route 53 ~61s + ALB health check ~22s)
+RPO:      ~60 seconds (DynamoDB ticker interval, not data loss)
+Failover: automatic</pre>
+
+  <h2 id="test-results">How the test was run</h2>
+  <p>
+    Two terminal loops running in parallel — one watching HTTP traffic and which region was serving,
+    one watching DynamoDB writes to confirm the data plane shifted too.
+  </p>
+  <pre># Terminal 1 — HTTP traffic + region
+while true; do
+  IP=$(dig +short app.jspoth.com | head -1)
+  REGION=$(dig +short -x $IP | grep -oE 'us-(east|west)-[0-9]')
+  STATUS=$(curl -sI https://app.jspoth.com/health/live | head -1 | tr -d '\r')
+  echo "$(date +%T) | $STATUS | $REGION ($IP)"
+  sleep 5
+done
+
+# Terminal 2 — DynamoDB writes
+while true; do
+  clear
+  aws dynamodb scan --table-name app_events --region us-east-2 \
+    --query "sort_by(Items[*].{region:region.S, timestamp:timestamp.S}, &timestamp)[-1::-1]" \
+    --output table
+  sleep 30
+done</pre>
+
+  <h2>What happened</h2>
+  <pre>07:28:42 | HTTP/2 503  | us-east-2 (3.132.95.107)   ← scaled to 0, primary ALB unhealthy
+07:28:47 | HTTP/2 503  | us-east-2 (3.132.95.107)
+07:28:53 | HTTP/2 200  | us-east-2 (3.132.95.107)   ← briefly 200 (in-flight requests draining)
+07:28:59 | HTTP/2 200  | us-east-2 (3.132.95.107)
+07:29:04 | HTTP/2 503  | us-east-2 (3.132.95.107)   ← primary fully down
+07:29:10 | HTTP/2 503  | us-east-2 (18.217.129.208)
+07:29:15 | HTTP/2 503  | us-east-2 (18.217.129.208)
+07:29:21 | HTTP/2 503  | us-east-2 (18.217.129.208)
+07:29:26 | HTTP/2 503  | us-east-2 (18.217.129.208)
+07:29:32 | HTTP/2 503  | us-east-2 (18.217.129.208)
+07:29:37 | HTTP/2 503  | us-east-2 (18.217.129.208)
+07:29:43 | HTTP/2 503  | us-west-2 (184.32.80.19)   ← Route 53 failed over (~61s)
+07:29:48 | HTTP/2 503  | us-west-2 (184.32.80.19)   ← DR ALB health check still failing (404)
+07:29:54 | HTTP/2 503  | us-west-2 (184.32.80.19)
+07:29:59 | HTTP/2 503  | us-west-2 (184.32.80.19)
+07:30:05 | HTTP/2 200  | us-west-2 (184.32.80.19)   ← DR serving normally
+07:30:10 | HTTP/2 200  | us-west-2 (184.32.80.19)
+07:30:15 | HTTP/2 200  | us-west-2 (52.13.238.180)
+07:30:53 | HTTP/2 200  | us-west-2 (52.13.238.180)  ← stable</pre>
+
+  <p>DynamoDB confirmed writes shifted to us-west-2:</p>
+  <pre>| us-west-2 | 2026-04-26T14:30:08Z |
+| us-east-2 | 2026-04-26T14:28:57Z |  ← last primary write
+| us-west-2 | 2026-04-26T14:27:57Z |
+| us-west-2 | 2026-04-26T14:21:57Z |  ← DR writing continuously before test</pre>
+
+  <h2>RTO breakdown</h2>
+  <pre>├── 07:28:42  primary scaled to 0
+├── 07:29:43  Route 53 failed over to us-west-2     (+61s)
+├── 07:30:05  DR ALB healthy, serving 200            (+22s)
+└── Total: 83 seconds</pre>
+
+
+  <h2>To reduce RTO further</h2>
+  <ul>
+    <li>Route 53 check interval is already at the 30s minimum. Fast health checks (10s) cost extra.</li>
+    <li>Pre-warming the ALB target group eliminates most of that 22s registration delay.</li>
+    <li>Dropping the DynamoDB ticker from 60s to 10s reduces RPO with no architecture changes.</li>
+  </ul>
+
+  <h2>SQS during the failover</h2>
+  <p>
+    SQS doesn't replicate across regions. Messages in the primary queue at the moment of failure stay there.
+    Messages after failover go to the DR queue and process normally. The gap is whatever was sitting unprocessed
+    at the moment things went down.
+  </p>
+
+</body>
+</html>
