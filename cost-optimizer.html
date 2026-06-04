@@ -94,6 +94,7 @@
     <a href="dr.html">DR</a>
     <a href="lessons.html">Observations</a>
     <a href="cost-optimizer.html">Cost Optimizer</a>
+    <a href="blast-radius.html">Blast Radius</a>
     <a id="contact-nav" href="#">Contact</a>
   </nav>
 
@@ -118,7 +119,8 @@ Est. waste:   ~$120–130/month</pre>
     A Go service runs as a Kubernetes CronJob. On each run, scanners pull CloudWatch metrics for each resource
     type — NAT gateways, ALBs, EIPs, EKS nodes, and the cluster. Findings are batched by resource type and sent
     to Claude via the Bedrock Converse API. The model reasons about each resource — whether the spend is
-    justified, why, and what to do about it — and returns actionable recommendations.
+    justified, why, and what to do about it — and returns actionable recommendations. Results are written to
+    DynamoDB, the full report is uploaded to S3, and a summary with a presigned link is emailed via SNS.
   </p>
 
 
@@ -174,7 +176,6 @@ tear down when idle) would eliminate this fixed cost entirely.</pre>
 
   <h2>What's next</h2>
   <ul>
-    <li>SNS email report after each run — currently logs to stdout only</li>
     <li>Enable Container Insights for accurate node CPU and memory metrics</li>
     <li>Fargate experiment — same scanner binary, EventBridge schedule, no cluster dependency</li>
   </ul>

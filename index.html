@@ -108,6 +108,7 @@
     .layer.cyan   { border-color: #a5f3fc; border-left-color: #0891b2; }
     .layer.green  { border-color: #bbf7d0; border-left-color: #16a34a; }
     .layer.amber  { border-color: #fde68a; border-left-color: #d97706; }
+    .layer.red    { border-color: #fecaca; border-left-color: #dc2626; }
     .layer-title {
       font-size: 0.68rem;
       font-weight: 600;
@@ -164,6 +165,7 @@
     <a href="dr.html">DR</a>
     <a href="lessons.html">Observations</a>
     <a href="cost-optimizer.html">Cost Optimizer</a>
+    <a href="blast-radius.html">Blast Radius</a>
     <a id="contact-nav" href="#">Contact</a>
   </nav>
 
@@ -179,7 +181,7 @@
     <p class="bio"><a href="https://www.linkedin.com/in/jspoth/">Jay</a> &mdash; Site Reliability Engineer</p>
     <h1>Building Cloud Infrastructure with AI</h1>
     <p class="dateline">
-      Last updated: April 2026 &middot;
+      Last updated: June 2026 &middot;
     </p>
     <p>15+ years in SRE and platform engineering. Exploring senior or staff SRE / Platform Engineering roles (remote or SF Bay Area). Open to a technical deep-dive on any of the projects below.</p>
     <p>
@@ -277,7 +279,7 @@
       </p>
       <p>
         A Go service runs as a Kubernetes CronJob, scanning AWS resources and sending findings to Claude via Bedrock.
-        The model reasons about each resource — whether it's wasteful, why, and what to do. AI identified
+        The model reasons about each resource — whether it's wasteful, why, and what to do. Results are written to DynamoDB, uploaded to S3, and emailed via SNS with a presigned link to the full report. AI identified
         ~$120–130/month of waste in my test environment.
         <a href="cost-optimizer.html">See the details here →</a>
       </p>
@@ -295,8 +297,8 @@
       </div>
       <div class="flow-arrow">↓</div>
       <div class="layer green">
-        <div class="layer-title">Findings</div>
-        <div class="layer-body">5 resources flagged</div>
+        <div class="layer-title">Report</div>
+        <div class="layer-body">DynamoDB &middot; S3 &middot; SNS email</div>
       </div>
       <div class="stats">
         <div class="stat">
@@ -307,6 +309,52 @@
           <div class="stat-value">5</div>
           <div class="stat-label">Resources</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 4: Blast Radius Analysis -->
+  <div class="section">
+    <div>
+      <h2>AI-Powered Blast Radius Analysis</h2>
+      <p>
+        Shipping changes more frequently increases production risk. Guardrails are imperative — to prevent
+        avoidable incidents and understand the impact and risk of each change. Code review tools check
+        correctness — does the code do what it says, do tests pass — but they don't assess deployment risk:
+        how much of the system is exposed if this change misbehaves, and how carefully it needs to be rolled out.
+      </p>
+      <p>
+        A write inside a background goroutine is a fundamentally different risk from a write inside an HTTP
+        handler. One runs continuously against production; the other only runs when triggered. That distinction
+        drives the entire rollout strategy. No static analysis tool reasons about it. This does.
+      </p>
+      <p>
+        On every Go PR, a GitHub Actions workflow diffs the changed files, sends them to Claude via Bedrock,
+        and posts a blast radius score — low, medium, high, or critical — directly on the PR. Based on the
+        score, it generates an Argo Rollouts canary config that the engineer can commit before merging.
+        <a href="blast-radius.html">How it works &rarr;</a>
+      </p>
+    </div>
+    <div class="diagram">
+      <div class="diagram-label">Blast Radius Pipeline</div>
+      <div class="layer cyan">
+        <div class="layer-title">Trigger</div>
+        <div class="layer-body">PR opened &middot; .go files changed</div>
+      </div>
+      <div class="flow-arrow">&darr;</div>
+      <div class="layer blue">
+        <div class="layer-title">Analysis</div>
+        <div class="layer-body">git diff &rarr; Claude via Bedrock<br>service &middot; direction &middot; trigger</div>
+      </div>
+      <div class="flow-arrow">&darr;</div>
+      <div class="layer amber">
+        <div class="layer-title">Score</div>
+        <div class="layer-body">low &middot; medium &middot; high &middot; critical</div>
+      </div>
+      <div class="flow-arrow">&darr;</div>
+      <div class="layer green">
+        <div class="layer-title">Output</div>
+        <div class="layer-body">PR comment &middot; rollout-config.yaml</div>
       </div>
     </div>
   </div>
