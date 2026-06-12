@@ -151,10 +151,95 @@
     .stat-value.green { color: #27ae60; }
     .stat-label { font-size: 0.67rem; color: #aaa; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.05em; }
 
+    /* ARCH DIAGRAM */
+    .arch-section { border-top: 1px solid #999; padding: 40px 0; }
+    .arch-section h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 32px; color: #111; }
+    .arch-grid {
+      display: grid;
+      grid-template-columns: 1fr 180px 1fr;
+      gap: 0;
+      align-items: start;
+    }
+    .swim-lane {
+      border: 1.5px solid #e0e0e0;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .swim-lane-header {
+      background: #f4f4f4;
+      border-bottom: 1.5px solid #e0e0e0;
+      padding: 8px 14px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #666;
+      text-align: center;
+    }
+    .swim-lane-body { padding: 14px 12px; }
+    .arch-node {
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin-bottom: 4px;
+      font-size: 0.8em;
+      line-height: 1.5;
+    }
+    .arch-node.trigger  { background: #fef3c7; border: 1px solid #fde68a; }
+    .arch-node.compute  { background: #dbeafe; border: 1px solid #bfdbfe; }
+    .arch-node.analysis { background: #ede9fe; border: 1px solid #ddd6fe; }
+    .arch-node.data     { background: #d1fae5; border: 1px solid #a7f3d0; }
+    .arch-node.notify   { background: #fee2e2; border: 1px solid #fecaca; }
+    .arch-node.client   { background: #e0f2fe; border: 1px solid #bae6fd; }
+    .arch-node-title    { font-weight: 600; color: #222; }
+    .arch-node-sub      { color: #666; font-size: 0.88em; }
+    .arch-arrow { text-align: center; color: #bbb; font-size: 0.9em; margin: 3px 0; }
+    .arch-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 8px;
+      gap: 6px;
+      margin-top: 36px;
+    }
+    .data-store {
+      background: #d1fae5;
+      border: 1.5px solid #34d399;
+      border-radius: 8px;
+      padding: 10px 12px;
+      width: 100%;
+      box-sizing: border-box;
+      text-align: center;
+      font-size: 0.78em;
+    }
+    .data-store-label { font-weight: 700; color: #065f46; font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.06em; }
+    .data-store-sub { color: #047857; }
+    .arch-h-arrow { color: #bbb; font-size: 0.85em; text-align: center; margin: 4px 0; }
+    .ssm-badge {
+      display: inline-block;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 0.75em;
+      color: #9a3412;
+    }
+    .lane-connector {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      margin-top: 80px;
+      color: #bbb;
+      font-size: 1.1em;
+    }
+
     /* MOBILE */
     @media (max-width: 740px) {
       .section { grid-template-columns: 1fr; gap: 24px; }
-
+      .arch-grid { grid-template-columns: 1fr; }
+      .arch-center { margin-top: 0; }
+      .lane-connector { display: none; }
     }
   </style>
 </head>
@@ -162,10 +247,11 @@
 
   <nav>
     <a href="index.html">EKS Platform</a>
+    <a href="chat.html">Ask Claude</a>
+    <a href="blast-radius.html">Blast Radius Analyzer</a>
+    <a href="cost-optimizer.html">Cost Optimizer</a>
     <a href="dr.html">DR</a>
     <a href="lessons.html">Observations</a>
-    <a href="cost-optimizer.html">Cost Optimizer</a>
-    <a href="blast-radius.html">Blast Radius Analyzer</a>
     <a id="contact-nav" href="#">Contact</a>
   </nav>
 
@@ -181,7 +267,7 @@
     <p class="bio"><a href="https://www.linkedin.com/in/jspoth/">Jay</a> &mdash; Site Reliability Engineer</p>
     <h1>Building Cloud Infrastructure with AI</h1>
     <p class="dateline">
-      Last updated: June 2026 &middot;
+      Last updated: June 12, 2026 &middot;
     </p>
     <p>15+ years in SRE and platform engineering. Exploring senior or staff SRE / Platform Engineering roles (remote or SF Bay Area). Open to a technical deep-dive on any of the projects below.</p>
     <p>
@@ -313,7 +399,65 @@
     </div>
   </div>
 
-  <!-- SECTION 4: Blast Radius Analysis -->
+  <!-- SECTION 4: Talk to the Cost Optimizer -->
+  <div class="section">
+    <div>
+      <h2>Talk to the Cost Optimizer</h2>
+      <p>
+        Sending a weekly report is a good first step — but it only tells you what changed this week.
+        To encourage engineers to actually be mindful of cost, a better approach is a UI that lets
+        them ask quick questions about their own resource usage and get direct answers.
+      </p>
+      <p>
+        Since the report already exists in S3 (<a href="cost-optimizer.html">see details here</a>),
+        I connected Claude Haiku on Bedrock to query it and answer questions grounded in real scan data.
+        If the data is older than a configurable threshold (default 7 days), the chat triggers a fresh
+        scan automatically. If no resources are currently running, it falls back to whatever is in S3
+        rather than failing silently.
+      </p>
+      <p>
+        The same data is also exposed as a remote MCP server — add one line to <code>~/.claude.json</code>
+        and Claude Code can query cost findings directly from your terminal.
+        Bot protection via reCAPTCHA v3, budget circuit breaker via SSM, and a VIP lane for hiring
+        managers who want to dig deeper without hitting the public rate limit.
+        <a href="chat.html">Try it →</a>
+      </p>
+    </div>
+    <div class="diagram">
+      <div class="diagram-label">Chat + MCP</div>
+      <div class="layer cyan">
+        <div class="layer-title">Browser</div>
+        <div class="layer-body">jspoth.com/chat · reCAPTCHA v3<br>VIP token · budget SSM check</div>
+      </div>
+      <div class="flow-arrow">↓ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓</div>
+      <div class="layer blue">
+        <div class="layer-title">Lambda — chat &nbsp;·&nbsp; Lambda — mcp</div>
+        <div class="layer-body">dual-lane routing · stale-data → scan trigger<br>MCP: JSON-RPC 2.0 · X-Project-Origin</div>
+      </div>
+      <div class="flow-arrow">↓</div>
+      <div class="layer purple">
+        <div class="layer-title">Claude Haiku · Bedrock</div>
+        <div class="layer-body">tool use: get_summary · get_findings<br>get_report</div>
+      </div>
+      <div class="flow-arrow">↓</div>
+      <div class="layer green">
+        <div class="layer-title">DynamoDB · S3</div>
+        <div class="layer-body">findings · full report JSON</div>
+      </div>
+    </div>
+  </div>
+
+  <!--
+  STASHED: MCP Service Dependency Tester
+  <div class="section">
+    <div>
+      <h2>MCP Service Dependency Tester</h2>
+      ...
+    </div>
+  </div>
+  -->
+
+  <!-- SECTION 5: Blast Radius Analysis -->
   <div class="section">
     <div>
       <h2>AI-Powered Blast Radius Analysis</h2>

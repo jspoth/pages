@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ask the Cost Optimizer — jspoth.com</title>
+  <meta name="description" content="Ask questions about real AWS cost findings. Powered by Claude Haiku on Bedrock." />
+  <meta property="og:title" content="Ask the Cost Optimizer — jspoth.com" />
+  <meta property="og:url" content="https://jspoth.com/chat" />
+  <meta property="og:type" content="website" />
+  <link rel="canonical" href="https://jspoth.com/chat" />
+  <script src="https://www.google.com/recaptcha/api.js?render=RECAPTCHA_SITE_KEY"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+      color: #333;
+      line-height: 1.7;
+    }
+    h1 { font-size: 2rem; margin-bottom: 4px; }
+    h2 { font-size: 1.3rem; margin-top: 40px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+    h3 { font-size: 1rem; margin-top: 24px; color: #555; }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.88em;
+      line-height: 1.6;
+    }
+    ul { padding-left: 20px; }
+    li { margin-bottom: 8px; }
+    a { color: #2980b9; }
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 100;
+      margin-bottom: 48px;
+      border-bottom: 1px solid #eee;
+      padding: 14px 0;
+    }
+    nav a { margin-right: 20px; color: #555; text-decoration: none; font-size: 0.9em; }
+    nav a:hover { color: #2980b9; }
+
+    .subtitle { color: #666; margin-top: 0; margin-bottom: 32px; }
+
+    /* chat */
+    .chat-box {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    textarea {
+      width: 100%;
+      min-height: 80px;
+      border: none;
+      padding: 16px;
+      font-family: inherit;
+      font-size: 0.95em;
+      color: #333;
+      resize: vertical;
+      box-sizing: border-box;
+      outline: none;
+      line-height: 1.5;
+    }
+    .chat-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      border-top: 1px solid #eee;
+      background: #fafafa;
+    }
+    .chat-hint { font-size: 0.8em; color: #aaa; }
+    button {
+      background: #2980b9;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 20px;
+      font-size: 0.9em;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    button:hover { background: #2471a3; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+
+    /* suggestions */
+    .suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 16px 0 24px;
+    }
+    .suggestion {
+      background: #f4f4f4;
+      border: 1px solid #e0e0e0;
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 0.83em;
+      cursor: pointer;
+      color: #555;
+      transition: background 0.15s;
+    }
+    .suggestion:hover { background: #e8f4fd; border-color: #2980b9; color: #2980b9; }
+
+    /* response */
+    .response-box { margin-top: 24px; display: none; }
+    .response-box.visible { display: block; }
+    .response-label {
+      font-size: 0.78em;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #aaa;
+      margin-bottom: 8px;
+    }
+    .response-content {
+      background: #f9f9f9;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      padding: 20px;
+      font-size: 0.93em;
+      line-height: 1.75;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .response-content.loading { color: #aaa; font-style: italic; }
+    .response-meta { font-size: 0.78em; color: #bbb; margin-top: 8px; text-align: right; }
+
+    /* error */
+    .error-msg {
+      background: #fff5f5;
+      border: 1px solid #fca5a5;
+      border-radius: 6px;
+      padding: 12px 16px;
+      font-size: 0.9em;
+      color: #b91c1c;
+      margin-top: 16px;
+      display: none;
+    }
+    .error-msg.visible { display: block; }
+
+    /* mcp section */
+    .mcp-section { margin-top: 60px; padding-top: 40px; border-top: 1px solid #eee; }
+    .mcp-badge {
+      display: inline-block;
+      background: #e8f4fd;
+      color: #1a6fa8;
+      font-size: 0.75em;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .copy-btn {
+      background: #e0e0e0;
+      color: #555;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 12px;
+      font-size: 0.8em;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .copy-btn:hover { background: #ccc; }
+    .grecaptcha-badge { visibility: hidden; }
+
+    /* how it works */
+    .how-section { margin-top: 56px; padding-top: 40px; border-top: 1px solid #eee; }
+    .how-section > h2 {
+      font-size: 1.3rem; margin: 0 0 24px; padding-bottom: 0;
+      border-bottom: none;
+    }
+    .how-grid {
+      display: grid;
+      grid-template-columns: 200px minmax(0, 480px);
+      gap: 40px;
+      align-items: start;
+    }
+    .arch-flow { display: flex; flex-direction: column; }
+    .arch-node {
+      border-radius: 7px;
+      padding: 9px 13px;
+      font-size: 0.81em;
+      line-height: 1.5;
+    }
+    .arch-node.client   { background: #e0f2fe; border: 1px solid #bae6fd; }
+    .arch-node.gateway  { background: #f3e8ff; border: 1px solid #e9d5ff; }
+    .arch-node.security { background: #fff7ed; border: 1px solid #fed7aa; }
+    .arch-node.compute  { background: #dbeafe; border: 1px solid #bfdbfe; }
+    .arch-node.model    { background: #ede9fe; border: 1px solid #ddd6fe; }
+    .arch-node.data     { background: #d1fae5; border: 1px solid #a7f3d0; }
+    .arch-node-title { font-weight: 600; color: #222; }
+    .arch-node-sub   { color: #666; font-size: 0.88em; }
+    .arch-arrow { text-align: center; color: #ccc; padding: 2px 0; font-size: 0.85em; }
+    .how-prose { font-size: 0.88em; color: #444; line-height: 1.75; }
+    .how-prose p { margin: 0 0 12px; }
+    .how-prose p:last-child { margin-bottom: 0; }
+    .how-prose strong { color: #222; }
+    @media (max-width: 640px) {
+      .how-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="index.html">EKS Platform</a>
+    <a href="chat.html" style="color:#2980b9;">Ask Claude</a>
+    <a href="blast-radius.html">Blast Radius Analyzer</a>
+    <a href="cost-optimizer.html">Cost Optimizer</a>
+    <a href="dr.html">DR</a>
+    <a href="lessons.html">Observations</a>
+    <a id="contact-nav" href="#">Contact</a>
+  </nav>
+
+  <script>
+    setTimeout(() => {
+      const u = "jspotharaju", d = "gmail.com";
+      document.getElementById("contact-nav").href = "mailto:" + u + "@" + d;
+    }, 500);
+  </script>
+
+  <h1>Ask the Cost Optimizer</h1>
+  <p class="subtitle">Query real AWS cost findings from my infrastructure. Powered by Claude Haiku on Bedrock.</p>
+
+  <div class="chat-box">
+    <textarea id="prompt" placeholder="What's wasting the most money? Which resources are idle? How much could I save on NAT Gateway?"></textarea>
+    <div class="chat-footer">
+      <span class="chat-hint">Queries real scan data — not a demo &nbsp;·&nbsp; Cmd+Enter to submit</span>
+      <button id="submit-btn" onclick="submitQuery()">Ask Claude</button>
+    </div>
+  </div>
+
+  <div class="suggestions">
+    <span class="suggestion" onclick="fillPrompt(this)">What's wasting the most money?</span>
+    <span class="suggestion" onclick="fillPrompt(this)">Give me a summary of the latest scan</span>
+    <span class="suggestion" onclick="fillPrompt(this)">What did you find on NAT Gateway?</span>
+    <span class="suggestion" onclick="fillPrompt(this)">Show me the full report</span>
+    <span class="suggestion" onclick="fillPrompt(this)">What ALB findings were flagged?</span>
+  </div>
+
+  <div class="error-msg" id="error-msg"></div>
+
+  <div class="response-box" id="response-box">
+    <div class="response-label">Claude</div>
+    <div class="response-content" id="response-content"></div>
+    <div class="response-meta" id="response-meta"></div>
+  </div>
+
+  <div class="how-section">
+    <h2>Overview of how chat works</h2>
+    <div class="how-grid">
+
+      <!-- left: vertical arch diagram -->
+      <div class="arch-flow">
+        <div class="arch-node client">
+          <div class="arch-node-title">Browser</div>
+          <div class="arch-node-sub">jspoth.com/chat</div>
+        </div>
+        <div class="arch-arrow">↓</div>
+        <div class="arch-node gateway">
+          <div class="arch-node-title">API Gateway</div>
+          <div class="arch-node-sub">rate limit · CORS</div>
+        </div>
+        <div class="arch-arrow">↓</div>
+        <div class="arch-node security">
+          <div class="arch-node-title">Verify</div>
+          <div class="arch-node-sub">reCAPTCHA v3 or VIP token<br>SSM budget check</div>
+        </div>
+        <div class="arch-arrow">↓</div>
+        <div class="arch-node compute">
+          <div class="arch-node-title">Lambda — chat</div>
+          <div class="arch-node-sub">Go · arm64<br>stale data → trigger scan</div>
+        </div>
+        <div class="arch-arrow">↓</div>
+        <div class="arch-node model">
+          <div class="arch-node-title">Claude Haiku · Bedrock</div>
+          <div class="arch-node-sub">tool use: up to 3 rounds</div>
+        </div>
+        <div class="arch-arrow">↓</div>
+        <div class="arch-node data">
+          <div class="arch-node-title">DynamoDB · S3</div>
+          <div class="arch-node-sub">findings · full report</div>
+        </div>
+      </div>
+
+      <!-- right: prose -->
+      <div class="how-prose">
+        <p>
+          When you submit a question, the browser gets a <strong>reCAPTCHA v3 token</strong> silently
+          in the background and sends it with the request. If you arrived via a VIP link, the token
+          is used instead — skipping reCAPTCHA entirely.
+        </p>
+        <p>
+          The request hits <strong>API Gateway</strong>, which enforces per-IP rate limits before
+          routing to the chat Lambda. The Lambda checks an <strong>SSM parameter</strong> that acts
+          as a budget circuit breaker — if monthly spend on the public lane exceeds the threshold,
+          it returns 429 without calling Bedrock.
+        </p>
+        <p>
+          If the last scan data is older than the configured threshold (default 7 days), the Lambda
+          fires an async invoke to the <strong>scan Lambda</strong> — fire-and-forget, so it doesn't
+          delay your answer.
+        </p>
+        <p>
+          The prompt is passed to <strong>Claude Haiku on Bedrock</strong> with three tools attached:
+          <code>get_summary</code>, <code>get_findings</code>, and <code>get_report</code>.
+          Claude decides which to call, reads from <strong>DynamoDB and S3</strong>, and reasons
+          over the real scan data before writing an answer. Tool calls are capped at three rounds
+          to keep latency predictable.
+        </p>
+        <p>
+          The full answer is returned as JSON and rendered in the page. No data is stored
+          client-side. Each request is logged with lane, token counts, tool calls, and duration
+          for observability.
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="mcp-section">
+    <h2>Connect via MCP <span class="mcp-badge">POC</span></h2>
+    <p>
+      The same cost data is exposed as a remote
+      <a href="https://modelcontextprotocol.io" target="_blank">MCP server</a>.
+      Add it to Claude Code or Claude.ai to query findings directly from your terminal.
+    </p>
+
+    <h3>Claude Code — add to <code>~/.claude.json</code></h3>
+    <pre id="mcp-config">{
+  "mcpServers": {
+    "jspoth-cost": {
+      "url": "https://api.jspoth.com/mcp",
+      "headers": {
+        "X-Project-Origin": "jspoth-mcp"
+      }
+    }
+  }
+}</pre>
+    <button class="copy-btn" onclick="copyConfig()">Copy config</button>
+
+    <h3>Available tools</h3>
+    <ul>
+      <li><code>get_summary</code> — latest scan timestamp, finding count, status</li>
+      <li><code>get_findings</code> — findings by resource type (nat, alb, eip, cluster, node)</li>
+      <li><code>get_report</code> — full cost report text</li>
+    </ul>
+  </div>
+
+  <script>
+    const API_URL = "https://api.jspoth.com/chat";
+    const RECAPTCHA_SITE_KEY = "RECAPTCHA_SITE_KEY";
+    const vipToken = new URLSearchParams(window.location.search).get("token") || "";
+
+    function fillPrompt(el) {
+      document.getElementById("prompt").value = el.textContent;
+      document.getElementById("prompt").focus();
+    }
+
+    async function submitQuery() {
+      const prompt = document.getElementById("prompt").value.trim();
+      if (!prompt) return;
+
+      const btn = document.getElementById("submit-btn");
+      const responseBox = document.getElementById("response-box");
+      const responseContent = document.getElementById("response-content");
+      const responseMeta = document.getElementById("response-meta");
+      const errorMsg = document.getElementById("error-msg");
+
+      btn.disabled = true;
+      btn.textContent = "Thinking...";
+      errorMsg.classList.remove("visible");
+      responseContent.textContent = "Claude is reasoning over your cost data...";
+      responseContent.classList.add("loading");
+      responseBox.classList.add("visible");
+      responseMeta.textContent = "";
+
+      const start = Date.now();
+
+      try {
+        const body = { prompt };
+        if (vipToken) {
+          body.vip_token = vipToken;
+        } else {
+          const token = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: "cost_chat" });
+          body.recaptcha_token = token;
+        }
+
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const data = await res.json();
+        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+
+        if (!res.ok) {
+          if (res.status === 429) {
+            showError("Monthly query limit reached. Try again next month.");
+          } else if (res.status === 403) {
+            showError("Verification failed. Please try again.");
+          } else {
+            showError(data.error || "Something went wrong. Please try again.");
+          }
+          responseBox.classList.remove("visible");
+          return;
+        }
+
+        responseContent.textContent = data.answer;
+        responseContent.classList.remove("loading");
+        responseMeta.textContent = elapsed + "s";
+
+      } catch (err) {
+        showError("Request failed. Check your connection and try again.");
+        responseBox.classList.remove("visible");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Ask Claude";
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById("error-msg");
+      el.textContent = msg;
+      el.classList.add("visible");
+    }
+
+    function copyConfig() {
+      const text = document.getElementById("mcp-config").textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = event.target;
+        btn.textContent = "Copied!";
+        setTimeout(() => btn.textContent = "Copy config", 1500);
+      });
+    }
+
+    document.getElementById("prompt").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submitQuery();
+    });
+  </script>
+
+</body>
+</html>
