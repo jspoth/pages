@@ -260,6 +260,8 @@
       const u = "jspotharaju", d = "gmail.com";
       document.getElementById("contact-nav").href = "mailto:" + u + "@" + d;
     }, 500);
+    const _t = new URLSearchParams(window.location.search).get("token");
+    if (_t) { localStorage.setItem("vip_token", _t); history.replaceState(null, "", "/"); }
   </script>
 
   <!-- INTRO: full width -->
