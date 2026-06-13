@@ -280,128 +280,7 @@
   </div>
 
   <!-- SECTION 1: Building Infrastructure with AI -->
-  <div class="section">
-    <div>
-      <h2>Building Infrastructure with AI - Where AI got it wrong</h2>
-      <p>
-        Building infra from scratch used to take weeks. Not because the concepts are hard — it's the execution loop.
-        Write Terraform, hit an error, dig through docs, fix it, hit the next one. Every component has its own quirks.
-        It compounds fast.
-      </p>
-      <p>
-        Go app on EKS, everything provisioned with Terraform, deployed via GitHub Actions. Event-driven SQS pipeline,
-        config managed through SSM and External Secrets Operator, Karpenter handling node scaling.
-      </p>
-      <p>
-        AI handled the heavy lifting but passing <code>terraform plan</code> doesn't mean it works.
-        Karpenter CRDs applied before the cluster was ready, wrong CPU architecture on first deploy,
-        ALB health check misconfigured, DR duplicated as a folder copy with no flag that Terragrunt exists.
-        Config that looks right and breaks at runtime — and things AI won't volunteer unless you ask.
-        <a href="lessons.html">Five specific examples →</a>
-      </p>
-    </div>
-    <div class="diagram">
-      <div class="diagram-label">System Overview</div>
-      <div class="layer cyan">
-        <div class="layer-title">Ingress</div>
-        <div class="layer-body">Route 53 &middot; ALB</div>
-      </div>
-      <div class="flow-arrow">↓</div>
-      <div class="layer blue">
-        <div class="layer-title">Compute</div>
-        <div class="layer-body">Go Service &middot; SQS Consumer<br>EKS (Karpenter)</div>
-      </div>
-      <div class="flow-arrow">↓</div>
-      <div class="layer purple">
-        <div class="layer-title">Data</div>
-        <div class="layer-body">DynamoDB &middot; SQS Queue<br>SSM Parameter Store</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECTION 2: Multi-Region DR -->
-  <div class="section">
-    <div>
-      <h2>Multi-Region Disaster Recovery</h2>
-      <p>
-        Pilot light DR in us-west-2. Route 53 health checks trigger automatic failover. The infrastructure was
-        mirrored with Terraform and deployed identically across both regions — same app, same pipeline, different
-        variables. Validated with a live test: scaled the primary to zero and watched what happened.
-      </p>
-      <div class="callout">
-        <strong>DR validated — April 2026:</strong> Route 53 failed over to us-west-2 in <strong>~61s</strong>,
-        full recovery in <strong>83s</strong>. DynamoDB writes shifted regions automatically. No manual steps.
-        <a href="dr.html#test-results">Full test results →</a>
-      </div>
-    </div>
-    <div class="diagram">
-      <div class="diagram-label">DR Topology</div>
-      <div class="region primary">
-        <div class="region-name">us-east-2 — Primary</div>
-        <div class="region-sub">EKS &middot; ALB &middot; DynamoDB</div>
-      </div>
-      <div class="flow-arrow">↓ <span class="failover-badge">Route 53 ~61s</span></div>
-      <div class="region standby">
-        <div class="region-name">us-west-2 — DR</div>
-        <div class="region-sub">Pilot light &middot; auto-scaled</div>
-      </div>
-      <div class="stats">
-        <div class="stat">
-          <div class="stat-value green">61s</div>
-          <div class="stat-label">DNS Failover</div>
-        </div>
-        <div class="stat">
-          <div class="stat-value green">83s</div>
-          <div class="stat-label">Full RTO</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECTION 3: Cost Optimization -->
-  <div class="section">
-    <div>
-      <h2>AI-Powered Cost Optimization</h2>
-      <p>
-        The biggest strength of cloud infrastructure is how easy it is to scale on demand — giving organizations the ability to test and iterate quickly. But this is a double-edged sword. Costs can spiral out of control: resources accumulate quietly, nobody rightsizes after traffic drops, dev infrastructure gets forgotten. This is where AI can help. One of the biggest strengths of LLMs is analysis — given data, they can reason about it, draw conclusions, and recommend actions.
-      </p>
-      <p>
-        A Go service runs as a Kubernetes CronJob, scanning AWS resources and sending findings to Claude via Bedrock.
-        The model reasons about each resource — whether it's wasteful, why, and what to do. Results are written to DynamoDB, uploaded to S3, and emailed via SNS with a presigned link to the full report. AI identified
-        ~$120–130/month of waste in my test environment.
-        <a href="cost-optimizer.html">See the details here →</a>
-      </p>
-    </div>
-    <div class="diagram">
-      <div class="diagram-label">Cost Optimizer</div>
-      <div class="layer amber">
-        <div class="layer-title">Scanners</div>
-        <div class="layer-body">NAT &middot; ALB &middot; EIP<br>EKS Nodes &middot; Cluster</div>
-      </div>
-      <div class="flow-arrow">↓</div>
-      <div class="layer blue">
-        <div class="layer-title">Analysis</div>
-        <div class="layer-body">Claude via Bedrock<br>7-day CloudWatch lookback</div>
-      </div>
-      <div class="flow-arrow">↓</div>
-      <div class="layer green">
-        <div class="layer-title">Report</div>
-        <div class="layer-body">DynamoDB &middot; S3 &middot; SNS email</div>
-      </div>
-      <div class="stats">
-        <div class="stat">
-          <div class="stat-value">~$130</div>
-          <div class="stat-label">Waste / Month</div>
-        </div>
-        <div class="stat">
-          <div class="stat-value">5</div>
-          <div class="stat-label">Resources</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECTION 4: Talk to the Cost Optimizer -->
+  <!-- SECTION 1: Talk to the Cost Optimizer -->
   <div class="section">
     <div>
       <h2>Talk to the Cost Optimizer</h2>
@@ -449,17 +328,50 @@
     </div>
   </div>
 
-  <!--
-  STASHED: MCP Service Dependency Tester
+  <!-- SECTION 2: Cost Optimization -->
   <div class="section">
     <div>
-      <h2>MCP Service Dependency Tester</h2>
-      ...
+      <h2>AI-Powered Cost Optimization</h2>
+      <p>
+        The biggest strength of cloud infrastructure is how easy it is to scale on demand — giving organizations the ability to test and iterate quickly. But this is a double-edged sword. Costs can spiral out of control: resources accumulate quietly, nobody rightsizes after traffic drops, dev infrastructure gets forgotten. This is where AI can help. One of the biggest strengths of LLMs is analysis — given data, they can reason about it, draw conclusions, and recommend actions.
+      </p>
+      <p>
+        A Go service runs as a Kubernetes CronJob, scanning AWS resources and sending findings to Claude via Bedrock.
+        The model reasons about each resource — whether it's wasteful, why, and what to do. Results are written to DynamoDB, uploaded to S3, and emailed via SNS with a presigned link to the full report. AI identified
+        ~$120–130/month of waste in my test environment.
+        <a href="cost-optimizer.html">See the details here →</a>
+      </p>
+    </div>
+    <div class="diagram">
+      <div class="diagram-label">Cost Optimizer</div>
+      <div class="layer amber">
+        <div class="layer-title">Scanners</div>
+        <div class="layer-body">NAT &middot; ALB &middot; EIP<br>EKS Nodes &middot; Cluster</div>
+      </div>
+      <div class="flow-arrow">↓</div>
+      <div class="layer blue">
+        <div class="layer-title">Analysis</div>
+        <div class="layer-body">Claude via Bedrock<br>7-day CloudWatch lookback</div>
+      </div>
+      <div class="flow-arrow">↓</div>
+      <div class="layer green">
+        <div class="layer-title">Report</div>
+        <div class="layer-body">DynamoDB &middot; S3 &middot; SNS email</div>
+      </div>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-value">~$130</div>
+          <div class="stat-label">Waste / Month</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">5</div>
+          <div class="stat-label">Resources</div>
+        </div>
+      </div>
     </div>
   </div>
-  -->
 
-  <!-- SECTION 5: Blast Radius Analysis -->
+  <!-- SECTION 3: Blast Radius Analysis -->
   <div class="section">
     <div>
       <h2>AI-Powered Blast Radius Analysis</h2>
@@ -501,6 +413,85 @@
       <div class="layer green">
         <div class="layer-title">Output</div>
         <div class="layer-body">PR comment &middot; rollout-config.yaml</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 4: Multi-Region DR -->
+  <div class="section">
+    <div>
+      <h2>Multi-Region Disaster Recovery</h2>
+      <p>
+        Pilot light DR in us-west-2. Route 53 health checks trigger automatic failover. The infrastructure was
+        mirrored with Terraform and deployed identically across both regions — same app, same pipeline, different
+        variables. Validated with a live test: scaled the primary to zero and watched what happened.
+      </p>
+      <div class="callout">
+        <strong>DR validated — April 2026:</strong> Route 53 failed over to us-west-2 in <strong>~61s</strong>,
+        full recovery in <strong>83s</strong>. DynamoDB writes shifted regions automatically. No manual steps.
+        <a href="dr.html#test-results">Full test results →</a>
+      </div>
+    </div>
+    <div class="diagram">
+      <div class="diagram-label">DR Topology</div>
+      <div class="region primary">
+        <div class="region-name">us-east-2 — Primary</div>
+        <div class="region-sub">EKS &middot; ALB &middot; DynamoDB</div>
+      </div>
+      <div class="flow-arrow">↓ <span class="failover-badge">Route 53 ~61s</span></div>
+      <div class="region standby">
+        <div class="region-name">us-west-2 — DR</div>
+        <div class="region-sub">Pilot light &middot; auto-scaled</div>
+      </div>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-value green">61s</div>
+          <div class="stat-label">DNS Failover</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value green">83s</div>
+          <div class="stat-label">Full RTO</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 5: EKS Platform -->
+  <div class="section">
+    <div>
+      <h2>Building Infrastructure with AI - Where AI got it wrong</h2>
+      <p>
+        Building infra from scratch used to take weeks. Not because the concepts are hard — it's the execution loop.
+        Write Terraform, hit an error, dig through docs, fix it, hit the next one. Every component has its own quirks.
+        It compounds fast.
+      </p>
+      <p>
+        Go app on EKS, everything provisioned with Terraform, deployed via GitHub Actions. Event-driven SQS pipeline,
+        config managed through SSM and External Secrets Operator, Karpenter handling node scaling.
+      </p>
+      <p>
+        AI handled the heavy lifting but passing <code>terraform plan</code> doesn't mean it works.
+        Karpenter CRDs applied before the cluster was ready, wrong CPU architecture on first deploy,
+        ALB health check misconfigured, DR duplicated as a folder copy with no flag that Terragrunt exists.
+        Config that looks right and breaks at runtime — and things AI won't volunteer unless you ask.
+        <a href="lessons.html">Five specific examples →</a>
+      </p>
+    </div>
+    <div class="diagram">
+      <div class="diagram-label">System Overview</div>
+      <div class="layer cyan">
+        <div class="layer-title">Ingress</div>
+        <div class="layer-body">Route 53 &middot; ALB</div>
+      </div>
+      <div class="flow-arrow">↓</div>
+      <div class="layer blue">
+        <div class="layer-title">Compute</div>
+        <div class="layer-body">Go Service &middot; SQS Consumer<br>EKS (Karpenter)</div>
+      </div>
+      <div class="flow-arrow">↓</div>
+      <div class="layer purple">
+        <div class="layer-title">Data</div>
+        <div class="layer-body">DynamoDB &middot; SQS Queue<br>SSM Parameter Store</div>
       </div>
     </div>
   </div>
