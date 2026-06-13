@@ -6,10 +6,10 @@
   <link rel="stylesheet" href="/dark.css">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Building Production Infrastructure with AI — EKS, Terraform, DR</title>
-  <meta name="description" content="How I used Claude Code to build a production-grade AWS platform from scratch — EKS, Terraform, SQS, multi-region DR — with AI as the engineer and me as the architect." />
-  <meta property="og:title" content="Building Production Infrastructure with AI — EKS, Terraform, DR" />
-  <meta property="og:description" content="How I used Claude Code to build a production-grade AWS platform from scratch — EKS, Terraform, SQS, multi-region DR — with AI as the engineer and me as the architect." />
+  <title>Jay — Senior / Staff Platform Engineer — SRE</title>
+  <meta name="description" content="Senior / Staff Platform Engineer with 19 years in software engineering and 7.5 years in SRE. Projects: AI Cost Optimizer, Blast Radius Analyzer, Multi-Region DR, EKS Platform." />
+  <meta property="og:title" content="Jay — Senior / Staff Platform Engineer" />
+  <meta property="og:description" content="Senior / Staff Platform Engineer with 19 years in software engineering and 7.5 years in SRE. Projects: AI Cost Optimizer, Blast Radius Analyzer, Multi-Region DR, EKS Platform." />
   <meta property="og:url" content="https://jspoth.com" />
   <meta property="og:type" content="website" />
   <link rel="canonical" href="https://jspoth.com" />
@@ -25,6 +25,29 @@
     .dateline { font-size: 0.83em; color: #aaa; margin-bottom: 20px; }
     .dateline a { color: #aaa; }
     .dateline a:hover { color: #2980b9; }
+    .experience { font-size: 0.92em; color: #666; margin-bottom: 18px; }
+    .projects-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 18px;
+    }
+    .projects-list li {
+      padding: 3px 0;
+      color: #444;
+      font-size: 0.95em;
+    }
+    .projects-list li::before {
+      content: "•";
+      color: #2980b9;
+      font-weight: 700;
+      margin-right: 8px;
+    }
+    .tagline {
+      font-size: 0.9em;
+      color: #2980b9;
+      margin: -8px 0 14px;
+      font-style: italic;
+    }
 
     /* SECTION ROWS */
     .section {
@@ -37,7 +60,7 @@
     }
 
     /* LEFT: text */
-    h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 14px; color: #111; }
+    h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 6px; color: #111; }
     p { margin: 0 0 12px; color: #444; }
     p:last-child { margin-bottom: 0; }
     .callout {
@@ -277,80 +300,33 @@
 
   <!-- INTRO: full width -->
   <div class="intro">
-    <p class="bio"><a href="https://www.linkedin.com/in/jspoth/">Jay</a> &mdash; Site Reliability Engineer</p>
-    <h1>Building Cloud Infrastructure with AI</h1>
-    <p class="dateline">
-      Last updated: June 12, 2026 &middot;
-    </p>
-    <p>19 years in software engineering, including 7.5 years in SRE. Exploring senior or staff SRE / Platform Engineering roles (remote or SF Bay Area). Open to a technical deep-dive on any of the projects below.</p>
-    <p>
-      I gave Claude Code a project plan and had it build phase by phase — EKS, Terraform, Go app, SQS pipeline,
-      multi-region DR — with me steering the architecture and Claude doing the implementation.
-      What used to take weeks took days.
-    </p>
+    <p class="bio"><a href="https://www.linkedin.com/in/jspoth/">Jay</a></p>
+    <p class="dateline">Last updated: June 12, 2026</p>
+    <h1>Senior / Staff Platform Engineer</h1>
+    <p class="experience">19 years in software engineering with 7.5 years focused on SRE, observability, incident response, and platform reliability.
+      Open to senior or staff SRE / Platform Engineering roles — remote or SF Bay Area.</p>
+    <p> Recent Projects: </p>
+    <ul class="projects-list">
+      <li><a href="cost-optimizer.html">AI-Powered Cloud Cost Optimizer</a></li>
+      <li><a href="blast-radius.html">Deployment Blast Radius Analysis</a></li>
+      <li><a href="dr.html">Multi-Region Disaster Recovery</a></li>
+      <li><a href="lessons.html">AWS EKS Platform Engineering</a></li>
+    </ul>
   </div>
 
-  <!-- SECTION 1: Building Infrastructure with AI -->
-  <!-- SECTION 1: Talk to the Cost Optimizer -->
-  <div class="section">
-    <div>
-      <h2>Talk to the Cost Optimizer</h2>
-      <p>
-        Sending a weekly report is a good first step — but it only tells you what changed this week.
-        To encourage engineers to actually be mindful of cost, a better approach is a UI that lets
-        them ask quick questions about their own resource usage and get direct answers.
-      </p>
-      <p>
-        Since the report already exists in S3 (<a href="cost-optimizer.html">see details here</a>),
-        I connected Claude Haiku on Bedrock to query it and answer questions grounded in real scan data.
-        If the data is older than a configurable threshold (default 7 days), the chat triggers a fresh
-        scan automatically. If no resources are currently running, it falls back to whatever is in S3
-        rather than failing silently.
-      </p>
-      <p>
-        The same data is also exposed as a remote MCP server — add one line to <code>~/.claude.json</code>
-        and Claude Code can query cost findings directly from your terminal.
-        Bot protection via reCAPTCHA v3, budget circuit breaker via SSM, and a VIP lane for hiring
-        managers who want to dig deeper without hitting the public rate limit.
-        <a href="chat.html">Try it →</a>
-      </p>
-    </div>
-    <div class="diagram">
-      <div class="diagram-label">Chat + MCP</div>
-      <div class="layer cyan">
-        <div class="layer-title">Browser</div>
-        <div class="layer-body">jspoth.com/chat · reCAPTCHA v3<br>VIP token · budget SSM check</div>
-      </div>
-      <div class="flow-arrow">↓ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓</div>
-      <div class="layer blue">
-        <div class="layer-title">Lambda — chat &nbsp;·&nbsp; Lambda — mcp</div>
-        <div class="layer-body">dual-lane routing · stale-data → scan trigger<br>MCP: JSON-RPC 2.0 · X-Project-Origin</div>
-      </div>
-      <div class="flow-arrow">↓</div>
-      <div class="layer purple">
-        <div class="layer-title">Claude Haiku · Bedrock</div>
-        <div class="layer-body">tool use: get_summary · get_findings<br>get_report</div>
-      </div>
-      <div class="flow-arrow">↓</div>
-      <div class="layer green">
-        <div class="layer-title">DynamoDB · S3</div>
-        <div class="layer-body">findings · full report JSON</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECTION 2: Cost Optimization -->
+  <!-- SECTION 1: Cost Optimization -->
   <div class="section">
     <div>
       <h2>AI-Powered Cost Optimization</h2>
+      <p class="tagline">Identified ~$130/month of cloud waste across NAT Gateway, ALB, EIP, and EKS nodes.</p>
       <p>
-        The biggest strength of cloud infrastructure is how easy it is to scale on demand — giving organizations the ability to test and iterate quickly. But this is a double-edged sword. Costs can spiral out of control: resources accumulate quietly, nobody rightsizes after traffic drops, dev infrastructure gets forgotten. This is where AI can help. One of the biggest strengths of LLMs is analysis — given data, they can reason about it, draw conclusions, and recommend actions.
+        Cloud costs spiral quietly — resources accumulate, nobody rightsizes after traffic drops, dev infrastructure gets forgotten. LLMs are well-suited to this problem: given utilization data, they can reason about it, draw conclusions, and recommend action.
       </p>
       <p>
         A Go service runs as a Kubernetes CronJob, scanning AWS resources and sending findings to Claude via Bedrock.
-        The model reasons about each resource — whether it's wasteful, why, and what to do. Results are written to DynamoDB, uploaded to S3, and emailed via SNS with a presigned link to the full report. AI identified
-        ~$120–130/month of waste in my test environment.
-        <a href="cost-optimizer.html">See the details here →</a>
+        The model reasons about each resource — wasteful or not, why, and what to do. Results write to DynamoDB,
+        upload to S3, and email via SNS with a presigned link to the full report.
+        <a href="cost-optimizer.html">See the details →</a>
       </p>
     </div>
     <div class="diagram">
@@ -382,25 +358,56 @@
     </div>
   </div>
 
+  <!-- SECTION 2: Talk to the Cost Optimizer -->
+  <div class="section">
+    <div>
+      <h2>Talk to the Cost Optimizer</h2>
+      <p class="tagline">Ask Claude questions about your AWS spend — grounded in real scan data.</p>
+      <p>
+        A weekly report tells you what changed. It doesn't make engineers mindful of cost. A better approach: let them ask quick questions and get direct answers grounded in actual usage data.
+      </p>
+      <p>
+        Claude Haiku on Bedrock queries the scan data in S3. If data is older than 7 days, it triggers a fresh scan automatically. The same data is exposed as a remote MCP server — add one line to <code>~/.claude.json</code> and Claude Code queries cost findings directly from your terminal. reCAPTCHA v3, SSM budget circuit breaker, and a VIP lane for deeper access without the public rate limit.
+        <a href="chat.html">Try it →</a>
+      </p>
+    </div>
+    <div class="diagram">
+      <div class="diagram-label">Chat + MCP</div>
+      <div class="layer cyan">
+        <div class="layer-title">Browser</div>
+        <div class="layer-body">jspoth.com/chat · reCAPTCHA v3<br>VIP token · budget SSM check</div>
+      </div>
+      <div class="flow-arrow">↓ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓</div>
+      <div class="layer blue">
+        <div class="layer-title">Lambda — chat &nbsp;·&nbsp; Lambda — mcp</div>
+        <div class="layer-body">dual-lane routing · stale-data → scan trigger<br>MCP: JSON-RPC 2.0 · X-Project-Origin</div>
+      </div>
+      <div class="flow-arrow">↓</div>
+      <div class="layer purple">
+        <div class="layer-title">Claude Haiku · Bedrock</div>
+        <div class="layer-body">tool use: get_summary · get_findings<br>get_report</div>
+      </div>
+      <div class="flow-arrow">↓</div>
+      <div class="layer green">
+        <div class="layer-title">DynamoDB · S3</div>
+        <div class="layer-body">findings · full report JSON</div>
+      </div>
+    </div>
+  </div>
+
   <!-- SECTION 3: Blast Radius Analysis -->
   <div class="section">
     <div>
       <h2>AI-Powered Blast Radius Analysis</h2>
+      <p class="tagline">Scores deployment risk before release and comments directly on pull requests.</p>
       <p>
-        Shipping changes more frequently increases production risk. Guardrails are imperative — to prevent
-        avoidable incidents and understand the impact and risk of each change. Code review tools check
-        correctness — does the code do what it says, do tests pass — but they don't assess deployment risk:
-        how much of the system is exposed if this change misbehaves, and how carefully it needs to be rolled out.
+        Code review checks correctness. It doesn't assess deployment risk — how much of the system is exposed if a change misbehaves, or how carefully it needs to be rolled out.
       </p>
       <p>
-        A write inside a background goroutine is a fundamentally different risk from a write inside an HTTP
-        handler. One runs continuously against production; the other only runs when triggered. That distinction
-        drives the entire rollout strategy. No static analysis tool reasons about it. This does.
+        A write inside a background goroutine is a fundamentally different risk from a write inside an HTTP handler. One runs continuously against production; the other only triggers on request. No static analysis tool reasons about that distinction. This does.
       </p>
       <p>
-        On every Go PR, a GitHub Actions workflow diffs the changed files, sends them to Claude via Bedrock,
-        and posts a blast radius score — low, medium, high, or critical — directly on the PR. Based on the
-        score, it generates an Argo Rollouts canary config that the engineer can commit before merging.
+        On every Go PR, a GitHub Actions workflow diffs the changed files, sends them to Claude via Bedrock, and posts a blast radius score — low, medium, high, or critical — directly on the PR. Based on the score, it generates an Argo Rollouts canary config the engineer can commit before merging.
         <a href="blast-radius.html">How it works &rarr;</a>
       </p>
     </div>
@@ -432,10 +439,9 @@
   <div class="section">
     <div>
       <h2>Multi-Region Disaster Recovery</h2>
+      <p class="tagline">Automated multi-region failover with 61s DNS recovery and 83s full restoration.</p>
       <p>
-        Pilot light DR in us-west-2. Route 53 health checks trigger automatic failover. The infrastructure was
-        mirrored with Terraform and deployed identically across both regions — same app, same pipeline, different
-        variables. Validated with a live test: scaled the primary to zero and watched what happened.
+        Pilot light DR in us-west-2. Route 53 health checks trigger automatic failover. Infrastructure mirrored with Terraform and deployed identically across both regions — same app, same pipeline, different variables. Validated with a live test: scaled the primary to zero and watched what happened.
       </p>
       <div class="callout">
         <strong>DR validated — April 2026:</strong> Route 53 failed over to us-west-2 in <strong>~61s</strong>,
@@ -470,21 +476,13 @@
   <!-- SECTION 5: EKS Platform -->
   <div class="section">
     <div>
-      <h2>Building Infrastructure with AI - Where AI got it wrong</h2>
+      <h2>Building Infrastructure with AI — Where AI Got It Wrong</h2>
+      <p class="tagline">Go app on EKS, Terraform, GitHub Actions — and five things AI quietly got wrong.</p>
       <p>
-        Building infra from scratch used to take weeks. Not because the concepts are hard — it's the execution loop.
-        Write Terraform, hit an error, dig through docs, fix it, hit the next one. Every component has its own quirks.
-        It compounds fast.
+        Go app on EKS, everything provisioned with Terraform, deployed via GitHub Actions. Event-driven SQS pipeline, config through SSM and External Secrets Operator, Karpenter for node scaling. What used to take weeks took days.
       </p>
       <p>
-        Go app on EKS, everything provisioned with Terraform, deployed via GitHub Actions. Event-driven SQS pipeline,
-        config managed through SSM and External Secrets Operator, Karpenter handling node scaling.
-      </p>
-      <p>
-        AI handled the heavy lifting but passing <code>terraform plan</code> doesn't mean it works.
-        Karpenter CRDs applied before the cluster was ready, wrong CPU architecture on first deploy,
-        ALB health check misconfigured, DR duplicated as a folder copy with no flag that Terragrunt exists.
-        Config that looks right and breaks at runtime — and things AI won't volunteer unless you ask.
+        Passing <code>terraform plan</code> doesn't mean it works. Karpenter CRDs applied before the cluster was ready. Wrong CPU architecture on first deploy. ALB health check misconfigured. DR duplicated as a folder copy with no mention that Terragrunt exists. Config that looks right and breaks at runtime — things AI won't volunteer unless you ask.
         <a href="lessons.html">Five specific examples →</a>
       </p>
     </div>
