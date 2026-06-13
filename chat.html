@@ -337,7 +337,9 @@
   <script>
     const API_URL = "https://9sroivmuvg.execute-api.us-east-1.amazonaws.com/chat";
     const RECAPTCHA_SITE_KEY = "6LfbQBwtAAAAAKlrm6o3YwsDeDtNIWBfdm2AtKKh";
-    const vipToken = new URLSearchParams(window.location.search).get("token") || "";
+    const urlToken = new URLSearchParams(window.location.search).get("token");
+    if (urlToken) localStorage.setItem("vip_token", urlToken);
+    const vipToken = urlToken || localStorage.getItem("vip_token") || "";
 
     function fillPrompt(el) {
       document.getElementById("prompt").value = el.textContent;
