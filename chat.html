@@ -9,7 +9,7 @@
   <meta property="og:url" content="https://jspoth.com/chat" />
   <meta property="og:type" content="website" />
   <link rel="canonical" href="https://jspoth.com/chat" />
-  <script src="https://www.google.com/recaptcha/api.js?render=RECAPTCHA_SITE_KEY"></script>
+  <script src="https://www.google.com/recaptcha/api.js?render=6LfbQBwtAAAAAKlrm6o3YwsDeDtNIWBfdm2AtKKh"></script>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -333,38 +333,10 @@
     </div>
   </div>
 
-  <div class="mcp-section">
-    <h2>Connect via MCP <span class="mcp-badge">POC</span></h2>
-    <p>
-      The same cost data is exposed as a remote
-      <a href="https://modelcontextprotocol.io" target="_blank">MCP server</a>.
-      Add it to Claude Code or Claude.ai to query findings directly from your terminal.
-    </p>
-
-    <h3>Claude Code — add to <code>~/.claude.json</code></h3>
-    <pre id="mcp-config">{
-  "mcpServers": {
-    "jspoth-cost": {
-      "url": "https://api.jspoth.com/mcp",
-      "headers": {
-        "X-Project-Origin": "jspoth-mcp"
-      }
-    }
-  }
-}</pre>
-    <button class="copy-btn" onclick="copyConfig()">Copy config</button>
-
-    <h3>Available tools</h3>
-    <ul>
-      <li><code>get_summary</code> — latest scan timestamp, finding count, status</li>
-      <li><code>get_findings</code> — findings by resource type (nat, alb, eip, cluster, node)</li>
-      <li><code>get_report</code> — full cost report text</li>
-    </ul>
-  </div>
 
   <script>
-    const API_URL = "https://api.jspoth.com/chat";
-    const RECAPTCHA_SITE_KEY = "RECAPTCHA_SITE_KEY";
+    const API_URL = "https://9sroivmuvg.execute-api.us-east-1.amazonaws.com/chat";
+    const RECAPTCHA_SITE_KEY = "6LfbQBwtAAAAAKlrm6o3YwsDeDtNIWBfdm2AtKKh";
     const vipToken = new URLSearchParams(window.location.search).get("token") || "";
 
     function fillPrompt(el) {
@@ -441,16 +413,7 @@
       el.classList.add("visible");
     }
 
-    function copyConfig() {
-      const text = document.getElementById("mcp-config").textContent;
-      navigator.clipboard.writeText(text).then(() => {
-        const btn = event.target;
-        btn.textContent = "Copied!";
-        setTimeout(() => btn.textContent = "Copy config", 1500);
-      });
-    }
-
-    document.getElementById("prompt").addEventListener("keydown", (e) => {
+document.getElementById("prompt").addEventListener("keydown", (e) => {
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submitQuery();
     });
   </script>
