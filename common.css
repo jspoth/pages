@@ -2,7 +2,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   max-width: 1060px;
   margin: 0 auto;
-  padding: 0 24px 80px;
+  padding: 0 24px;
   color: #333;
   line-height: 1.7;
 }
@@ -40,6 +40,6 @@ pre {
   line-height: 1.6;
 }
 
-ul { padding-left: 20px; }
+ol, ul { padding-left: 20px; }
 li { margin-bottom: 8px; }
 .subtitle { color: #666; margin-top: 0; }
