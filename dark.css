@@ -11,7 +11,14 @@
 [data-theme="dark"] .diagram { background: #252525; border-color: #444; }
 [data-theme="dark"] .diagram-label { color: #ccc; }
 [data-theme="dark"] .layer { background: #2d2d2d !important; border-color: #444 !important; }
-[data-theme="dark"] .layer-body, [data-theme="dark"] .layer-title { color: #bbb !important; }
+[data-theme="dark"] .layer.blue   { border-left-color: #3b82f6 !important; }
+[data-theme="dark"] .layer.purple { border-left-color: #7c3aed !important; }
+[data-theme="dark"] .layer.cyan   { border-left-color: #0891b2 !important; }
+[data-theme="dark"] .layer.green  { border-left-color: #16a34a !important; }
+[data-theme="dark"] .layer.amber  { border-left-color: #d97706 !important; }
+[data-theme="dark"] .layer.red    { border-left-color: #dc2626 !important; }
+[data-theme="dark"] .layer-title { color: #777 !important; }
+[data-theme="dark"] .layer-body { color: #bbb !important; }
 [data-theme="dark"] .flow-arrow { color: #666; }
 [data-theme="dark"] .arch-node { background: #2d2d2d !important; border-color: #444 !important; }
 [data-theme="dark"] .arch-node-title { color: #e0e0e0; }
@@ -22,8 +29,10 @@
 [data-theme="dark"] .failover-badge { background: #1a2433; border-color: #2d4a7f; color: #7ab3d4; }
 [data-theme="dark"] .ssm-badge { background: #2d1e0a; border-color: #7f4a00; color: #d4956a; }
 [data-theme="dark"] .stat { background: #2d2d2d; border-color: #444; }
+[data-theme="dark"] .stat-value { color: #5ba3d0; }
 [data-theme="dark"] .stat-label { color: #777; }
 [data-theme="dark"] .callout { background: #1e2d1e; border-color: #2d5a2d; color: #bbb; }
+[data-theme="dark"] .callout strong { color: #6dbf6d; }
 [data-theme="dark"] .callout.blue { background: #1a2433; border-color: #2d4a7f; color: #bbb; }
 [data-theme="dark"] .callout-amber { background: #2a1e0a; border-color: #7f4a00; color: #bbb; }
 [data-theme="dark"] .section { border-color: #444; }
@@ -31,6 +40,8 @@
 [data-theme="dark"] .contact-sub { color: #999; }
 [data-theme="dark"] .contact-value { color: #ccc; }
 [data-theme="dark"] .region { background: #2d2d2d !important; border-color: #444 !important; }
+[data-theme="dark"] .region.primary { border-left-color: #2563eb !important; }
+[data-theme="dark"] .region.standby { border-left-color: #16a34a !important; }
 [data-theme="dark"] .region-name { color: #e0e0e0; }
 [data-theme="dark"] .region-sub { color: #999; }
 [data-theme="dark"] .arch-section { border-color: #444; }
