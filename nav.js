@@ -2,6 +2,9 @@
 (function () {
   var t = localStorage.getItem('theme');
   if (t) document.documentElement.setAttribute('data-theme', t);
+  var icon = document.createElement('link');
+  icon.rel = 'icon'; icon.type = 'image/svg+xml'; icon.href = '/favicon.svg';
+  document.head.appendChild(icon);
 })();
 
 function toggleTheme() {
@@ -13,6 +16,15 @@ function toggleTheme() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+  var nav = document.querySelector('nav');
+  if (nav) {
+    var logo = document.createElement('a');
+    logo.href = '/';
+    logo.className = 'logo';
+    logo.textContent = 'JP';
+    nav.insertBefore(logo, nav.firstChild);
+  }
+
   var u = 'jspotharaju', d = 'gmail.com';
   var contact = document.getElementById('contact-nav');
   if (contact) {

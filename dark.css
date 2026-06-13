@@ -1,6 +1,7 @@
-[data-theme="dark"] body { background: #1a1a1a; color: #ccc; }
-[data-theme="dark"] nav { background: rgba(26,26,26,0.95) !important; border-color: #333 !important; }
+[data-theme="dark"] body { background: #1c1c1e; color: #ccc; }
+[data-theme="dark"] nav { background: rgba(28,28,30,0.95) !important; border-color: #333 !important; }
 [data-theme="dark"] nav a { color: #999; }
+[data-theme="dark"] .logo { background: #1f6391; }
 [data-theme="dark"] nav a:hover { color: #5ba3d0; }
 [data-theme="dark"] a { color: #5ba3d0; }
 [data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3 { color: #e0e0e0; }
