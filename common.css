@@ -62,27 +62,33 @@ ol, ul { padding-left: 20px; }
 li { margin-bottom: 8px; }
 .subtitle { color: #666; margin-top: 0; }
 
+#nav-toggle { display: none; }
+.nav-hamburger { display: none; }
+
 @media (max-width: 640px) {
   nav {
-    white-space: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
     padding: 10px 0;
   }
-  nav::-webkit-scrollbar { display: none; }
+  .logo { order: 0; margin-right: auto; }
+  .nav-hamburger {
+    order: 1;
+    display: inline-block;
+    cursor: pointer;
+    font-size: 1.3em;
+    padding: 2px 8px;
+  }
+  nav button { order: 2; }
   nav a:not(.logo) {
-    font-size: 0;
-    margin-right: 14px;
+    order: 3;
+    display: none;
+    width: 100%;
+    padding: 8px 0;
+    margin-right: 0;
+    font-size: 0.9em;
+    border-bottom: 1px solid #eee;
   }
-  nav a:not(.logo)::after {
-    font-size: 13px;
-  }
-  nav a[href="/"]:not(.logo)::after         { content: 'EKS'; }
-  nav a[href="chat.html"]::after             { content: 'Chat'; }
-  nav a[href="blast-radius.html"]::after     { content: 'PR Analyzer'; }
-  nav a[href="cost-optimizer.html"]::after   { content: 'Cost Opt'; }
-  nav a[href="dr.html"]::after               { content: 'DR'; }
-  nav a[href="lessons.html"]::after          { content: 'Notes'; }
-  nav a#contact-nav::after                   { content: 'Contact'; }
+  #nav-toggle:checked ~ a:not(.logo) { display: block; }
 }

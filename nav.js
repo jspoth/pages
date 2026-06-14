@@ -23,6 +23,17 @@ document.addEventListener('DOMContentLoaded', function () {
     logo.className = 'logo';
     logo.textContent = 'JP';
     nav.insertBefore(logo, nav.firstChild);
+
+    var toggle = document.createElement('input');
+    toggle.type = 'checkbox';
+    toggle.id = 'nav-toggle';
+    nav.insertBefore(toggle, logo.nextSibling);
+
+    var hamburger = document.createElement('label');
+    hamburger.setAttribute('for', 'nav-toggle');
+    hamburger.className = 'nav-hamburger';
+    hamburger.textContent = '☰';
+    nav.insertBefore(hamburger, toggle.nextSibling);
   }
 
   var u = 'jspotharaju', d = 'gmail.com';
@@ -38,4 +49,5 @@ document.addEventListener('DOMContentLoaded', function () {
   var btn = document.getElementById('theme-toggle');
   if (btn) btn.textContent =
     document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
+
 });
