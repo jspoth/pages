@@ -1,7 +1,7 @@
 // Runs synchronously — sets theme before first paint to prevent flash
 (function () {
-  var t = localStorage.getItem('theme');
-  if (t) document.documentElement.setAttribute('data-theme', t);
+  var t = localStorage.getItem('theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
   var icon = document.createElement('link');
   icon.rel = 'icon'; icon.type = 'image/svg+xml'; icon.href = '/favicon.svg';
   document.head.appendChild(icon);
