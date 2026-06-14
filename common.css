@@ -61,3 +61,28 @@ pre {
 ol, ul { padding-left: 20px; }
 li { margin-bottom: 8px; }
 .subtitle { color: #666; margin-top: 0; }
+
+@media (max-width: 640px) {
+  nav {
+    white-space: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 10px 0;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  nav a:not(.logo) {
+    font-size: 0;
+    margin-right: 14px;
+  }
+  nav a:not(.logo)::after {
+    font-size: 13px;
+  }
+  nav a[href="/"]:not(.logo)::after         { content: 'EKS'; }
+  nav a[href="chat.html"]::after             { content: 'Chat'; }
+  nav a[href="blast-radius.html"]::after     { content: 'PR Analyzer'; }
+  nav a[href="cost-optimizer.html"]::after   { content: 'Cost Opt'; }
+  nav a[href="dr.html"]::after               { content: 'DR'; }
+  nav a[href="lessons.html"]::after          { content: 'Notes'; }
+  nav a#contact-nav::after                   { content: 'Contact'; }
+}
