@@ -240,6 +240,11 @@
           <div class="arch-node-sub">Go · arm64<br>stale data → trigger scan</div>
         </div>
         <div class="arch-arrow">↓</div>
+        <div class="arch-node security">
+          <div class="arch-node-title">Bedrock Guardrails</div>
+          <div class="arch-node-sub">prompt injection · content filtering</div>
+        </div>
+        <div class="arch-arrow">↓</div>
         <div class="arch-node model">
           <div class="arch-node-title">Claude Haiku · Bedrock</div>
           <div class="arch-node-sub">tool use: up to 3 rounds</div>
@@ -268,6 +273,10 @@
           If the last scan data is older than the configured threshold (default 7 days), the Lambda
           fires an async invoke to the <strong>scan Lambda</strong> — fire-and-forget, so it doesn't
           delay your answer.
+        </p>
+        <p>
+          Every prompt passes through <strong>Bedrock Guardrails</strong> before reaching Claude —
+          content filtering for harmful content and prompt injection detection at high sensitivity.
         </p>
         <p>
           The prompt is passed to <strong>Claude Haiku on Bedrock</strong> with three tools attached:
