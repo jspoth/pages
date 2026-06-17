@@ -17,9 +17,9 @@ function toggleTheme() {
 
 var NAV_LINKS = [
   { href: '/',                    label: 'EKS Platform'          },
-  { href: '/chat.html',           label: 'Cost Insights'         },
   { href: '/blast-radius.html',   label: 'Blast Radius Analyzer' },
   { href: '/cost-optimizer.html', label: 'Cost Optimizer'        },
+  { href: '/chat.html',           label: 'Cost Insights'         },
   { href: '/dr.html',             label: 'DR'                    },
   { href: '/lessons.html',        label: 'Observations'          },
 ];
