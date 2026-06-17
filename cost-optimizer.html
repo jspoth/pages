@@ -137,6 +137,26 @@ EKS control plane costs ~$73/month regardless of node count or workload.
 For a dev environment, creating the cluster on-demand (spin up via Terraform,
 tear down when idle) would eliminate this fixed cost entirely.</pre>
 
+  <h2>Budget kill switch</h2>
+  <p>
+    The scanner calls Bedrock on every run, so uncontrolled execution could itself become a cost problem.
+    An SSM parameter (<code>/cost-optimizer/scan_enabled</code>) is checked at the start of every scan — if
+    it is <code>false</code> or SSM is unreachable, the Lambda exits immediately without touching CloudWatch
+    or Bedrock. The failure mode is deliberately conservative: fail closed rather than risk unexpected spend.
+  </p>
+  <p>
+    The switch is wired to an AWS Budget. When actual Bedrock spend crosses the threshold, Budgets publishes
+    to an SNS topic, which invokes a dedicated Lambda that flips the SSM parameter to <code>false</code> and
+    sends an email notification. Re-enabling is intentionally manual — someone has to consciously decide to
+    turn it back on.
+  </p>
+  <p>
+    <strong>Caveat:</strong> AWS Budgets is not real-time. Spend data flows through Cost Explorer, which can
+    lag up to 8 hours, and Budgets evaluates a few times per day. It is a monthly guardrail, not an instant
+    circuit breaker. For true real-time spend control you would need to instrument the Lambda itself —
+    tracking token counts per invocation and self-disabling when a limit is reached.
+  </p>
+
   <h2>What's next</h2>
   <ul>
     <li>Enable Container Insights for accurate node CPU and memory metrics</li>
