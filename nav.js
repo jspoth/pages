@@ -22,6 +22,7 @@ var NAV_LINKS = [
   { href: '/chat.html',           label: 'Cost Insights'         },
   { href: '/dr.html',             label: 'DR'                    },
   { href: '/lessons.html',        label: 'Observations'          },
+  { href: '/music.html',          label: 'AI for Music'          },
 ];
 
 document.addEventListener('DOMContentLoaded', function () {

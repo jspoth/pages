@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="/nav.js"></script>
+  <link rel="stylesheet" href="/common.css">
+  <link rel="stylesheet" href="/dark.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI for Music — Timing Analysis for Mridangam Practice</title>
+  <meta name="description" content="An MCP server that analyzes tempo accuracy in percussion practice recordings — onset detection and gap arithmetic, no classifier, no training data. Ask an LLM client which beats were off tempo." />
+  <meta property="og:title" content="AI for Music — Timing Analysis for Mridangam Practice" />
+  <meta property="og:description" content="An MCP server that analyzes tempo accuracy in percussion practice recordings — onset detection and gap arithmetic, no classifier, no training data." />
+  <meta property="og:url" content="https://jspoth.com/music" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://jspoth.com/music" />
+  <style>
+    h1 { font-size: 2rem; margin-bottom: 4px; }
+    h2 { font-size: 1.3rem; margin-top: 40px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+    h3 { font-size: 1rem; margin-top: 24px; color: #555; }
+
+    .section {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 48px;
+      align-items: start;
+      margin-top: 24px;
+    }
+    @media (max-width: 740px) {
+      .section { grid-template-columns: 1fr; gap: 24px; }
+    }
+
+    .diagram {
+      background: #fafafa;
+      border: 1.5px solid #222;
+      border-radius: 10px;
+      padding: 16px 18px;
+      font-size: 0.82em;
+    }
+    .diagram-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #111;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    .layer {
+      background: #fff;
+      border: 1px solid #e8e8e8;
+      border-left: 3px solid #e8e8e8;
+      border-radius: 6px;
+      padding: 9px 12px;
+      margin-bottom: 3px;
+    }
+    .layer.cyan   { border-color: #a5f3fc; border-left-color: #0891b2; }
+    .layer.blue   { border-color: #bfdbfe; border-left-color: #3b82f6; }
+    .layer.purple { border-color: #ddd6fe; border-left-color: #7c3aed; }
+    .layer.green  { border-color: #bbf7d0; border-left-color: #16a34a; }
+    .layer-title {
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #999;
+      margin-bottom: 4px;
+    }
+    .layer-body { color: #444; line-height: 1.65; }
+    .flow-arrow { text-align: center; color: #bbb; margin: 3px 0; }
+
+    .tool-card {
+      background: #fafafa;
+      border: 1px solid #e8e8e8;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .tool-name { font-family: monospace; color: #2980b9; font-weight: 600; }
+    .tool-card p { margin: 6px 0 0; color: #555; font-size: 0.92em; }
+
+    .callout {
+      background: #e8f5e9;
+      border-left: 4px solid #27ae60;
+      padding: 12px 16px;
+      border-radius: 0 4px 4px 0;
+      margin: 16px 0 0;
+      font-size: 0.92em;
+      color: #333;
+    }
+    .callout strong { color: #1e7e34; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 16px; }
+    @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+  <nav></nav>
+
+  <script></script>
+
+  <h1>AI for Music: Timing analysis for mridangam practice</h1>
+  <p style="font-size: 0.85em; color: #999;">Last updated: August 2026</p>
+  <p class="subtitle">An MCP server that tells you which beats weren't at tempo — not which stroke you played.</p>
+
+  <p>
+    <a href="https://en.wikipedia.org/wiki/Mridangam">Mridangam</a> is an Indian percussion instrument, and is a staple of Indian Carnatic music. A mridangam player is somewhat like a drummer in a band: they provide the rhythmic foundation for the music, keep the performance moving in time, and adapt their playing to complement what the singer or other musicians are doing.
+  </p>
+
+  <h2>The problem</h2>
+  <p>
+    Recently I was helping someone get ready for a concert. This involved daily practice of playing mridangam and also learning the <a href="https://en.wikipedia.org/wiki/Konnakol">konnakol</a> for the piece. Since this was a new piece for the person I was helping, who was just getting started on their mridangam journey, it was challenging to learn both the konnakol and the correct playing pattern.
+  </p>
+
+  <p>
+    This led me to think about whether technology could be leveraged here to make the learning process easier. As far as I know, for most musical instruments, the way you say the notes is the same as the way you play them. For example, if the guitar sheet says to play E, one plays E on the guitar. But for mridangam, how you say konnakol doesn't map one-to-one onto how you play it — it's a one-to-many relationship. That means the same note can be played in multiple ways.
+  </p>
+
+  <p>
+    This gave me an idea: maybe I can identify the note by the sound and then transcribe it, so the person can quickly learn the piece. And for this I looked at the <a href="https://zenodo.org/records/1265188#.WyeMJhyxXMU">mridangam stroke dataset</a> and built a classifier using that. But the classifier did not work as expected, since the training data set was created in a studio setting, which meant there was no variance in data quality — and as a result, it failed when classifying sounds captured by phone.
+  </p>
+
+  <p>
+    As the next iteration, I targeted the second problem of practicing with a metronome. When practicing with a metronome, it is difficult to visually get any feedback from the metronome app on whether one is playing in sync or not, and which areas need focus. A proficient mridangam player can quickly identify, when practicing, which areas are not in sync when playing with a metronome — but for someone getting started, any additional feedback apart from their own judgement is very helpful. Built a simple JS-powered HTML file that can capture live playing and give feedback in real time on whether the musician is in sync.
+  </p>
+
+  <p>
+    In order to make this tool accessible for all, I built an MCP server that can process any uploaded mridangam piece and the bpm at which the practice was done. The MCP server calls a python script that runs the analysis and sends that data to an LLM for actionable feedback.
+  </p>
+
+  <p>
+    The <a href="https://github.com/jspoth/mcp" target="_blank" rel="noopener">MCP server</a> (and standalone
+    CLI) answers the question
+    <em>"analyze the timing of my practice recording at /path/to/file.wav, target tempo 80bpm"</em> and get
+    back exactly which gaps were off, by how much, and how consistent the whole take was.
+  </p>
+
+  <div class="section">
+    <div>
+      <h2>How it works</h2>
+      <p>
+        Three steps, all in <code>timing_analysis.py</code>, with no fixed configuration required beyond an
+        optional target tempo.
+      </p>
+      <ul>
+        <li>No fixed beat grid — each gap is compared only to its immediate neighbors, so error doesn't compound over a long recording.</li>
+        <li>Target tempo is optional — if omitted, it's auto-estimated directly from the recording.</li>
+        <li>Subdivision (e.g. two strokes per beat) is inferred from the gap pattern itself, and adapts if it changes partway through.</li>
+        <li>No classifier, no training data — just onset detection and arithmetic.</li>
+      </ul>
+    </div>
+    <div class="diagram">
+      <div class="diagram-label">Timing Analysis</div>
+      <div class="layer cyan">
+        <div class="layer-title">1. Onset detection</div>
+        <div class="layer-body">librosa detects when strokes were actually played</div>
+      </div>
+      <div class="flow-arrow">↓</div>
+      <div class="layer blue">
+        <div class="layer-title">2. Gap-by-gap tempo</div>
+        <div class="layer-body">gap in seconds → BPM (60 ÷ gap) → compared to target BPM</div>
+      </div>
+      <div class="flow-arrow">↓</div>
+      <div class="layer purple">
+        <div class="layer-title">3. Subdivision detection</div>
+        <div class="layer-body">infers strokes-per-beat from the gap pattern — adapts mid-recording</div>
+      </div>
+      <div class="flow-arrow">↓</div>
+      <div class="layer green">
+        <div class="layer-title">Report</div>
+        <div class="layer-body">per-gap deviations, consistency stats, optional chart PNG</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Two ways to use it</h2>
+  <div class="two-col">
+    <div class="tool-card">
+      <div class="tool-name">CLI — no LLM involved</div>
+      <p>
+        <code>python timing_analysis.py recording.wav --bpm 80</code> prints a per-gap report and saves a
+        chart. Tempo can be omitted and it auto-estimates. Useful on its own, with nothing sent anywhere.
+      </p>
+    </div>
+    <div class="tool-card">
+      <div class="tool-name">MCP tool — analyze_timing(filepath, bpm)</div>
+      <p>
+        Registered with Claude Desktop or Claude Code. The model calls the tool, gets back computed stats
+        (and optionally a chart image), and discusses the results conversationally — "which gaps were
+        rushed," "was the subdivision consistent," etc.
+      </p>
+    </div>
+  </div>
+
+  <h2>Privacy / security design</h2>
+  <p>
+    The main design constraint on the MCP wrapper: the LLM should get exactly what it needs to give useful
+    feedback, and nothing more.
+  </p>
+  <div class="callout">
+    <strong>The tool takes a filepath, not audio data.</strong> It reads the file locally and returns only
+    computed statistics — never the raw audio bytes, waveform, or sample array. stdin/stdout are reserved
+    for the MCP protocol channel, so the server logs the exact payload it's about to return to stderr before
+    sending it, keeping what's shared with the model inspectable. Nothing is uploaded or stored anywhere
+    beyond your own chosen LLM client.
+  </div>
+
+  <h2>Source</h2>
+  <p>
+    <a href="https://github.com/jspoth/mcp" target="_blank" rel="noopener">github.com/jspoth/mcp</a> —
+    MIT licensed. Built around mridangam and konnakol practice, but the underlying method works for any
+    single-line percussive recording.
+  </p>
+
+</body>
+</html>
