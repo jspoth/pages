@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Metronome &amp; Timing Trainer</title>
+<style>
+  :root {
+    --surface:        #ffffff;
+    --surface-raised: #fafafa;
+    --ink:            #333333;
+    --ink-muted:      #666666;
+    --ink-faint:      #999999;
+    --accent:         #2980b9;
+    --accent-soft:    #2980b926;
+    --hairline:       #e8e8e8;
+    --good:           #27ae60;
+    --critical:       #c0392b;
+    --good-soft:      #27ae601f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface:        #1c1c1e;
+      --surface-raised: #2d2d2d;
+      --ink:            #cccccc;
+      --ink-muted:      #999999;
+      --ink-faint:      #777777;
+      --accent:         #5ba3d0;
+      --accent-soft:    #5ba3d026;
+      --hairline:       #444444;
+      --good:           #6dbf6d;
+      --critical:       #e0a0a0;
+      --good-soft:      #6dbf6d26;
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface:        #1c1c1e;
+    --surface-raised: #2d2d2d;
+    --ink:            #cccccc;
+    --ink-muted:      #999999;
+    --ink-faint:      #777777;
+    --accent:         #5ba3d0;
+    --accent-soft:    #5ba3d026;
+    --hairline:       #444444;
+    --good:           #6dbf6d;
+    --critical:       #e0a0a0;
+    --good-soft:      #6dbf6d26;
+  }
+  :root[data-theme="light"] {
+    --surface:        #ffffff;
+    --surface-raised: #fafafa;
+    --ink:            #333333;
+    --ink-muted:      #666666;
+    --ink-faint:      #999999;
+    --accent:         #2980b9;
+    --accent-soft:    #2980b926;
+    --hairline:       #e8e8e8;
+    --good:           #27ae60;
+    --critical:       #c0392b;
+    --good-soft:      #27ae601f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--surface);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.7;
+  }
+
+  .mono {
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  }
+
+  .cond {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  header {
+    padding: 28px 24px 18px;
+    border-bottom: 1px solid var(--hairline);
+    max-width: 1060px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--ink);
+    font-size: 2rem;
+    margin: 0 0 6px;
+  }
+
+  .subtitle {
+    color: var(--ink-muted);
+    font-size: 0.95rem;
+    margin: 0;
+  }
+
+  main {
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+
+  .panel {
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface-raised);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .panel h2 {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--ink);
+    margin: 0 0 14px;
+  }
+
+  .controls-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  label {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  input[type="number"] {
+    font-family: "SF Mono", monospace;
+    font-size: 1.1rem;
+    width: 90px;
+    padding: 8px 10px;
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink);
+  }
+
+  input[type="range"] {
+    width: 140px;
+  }
+
+  button {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: normal;
+    padding: 10px 22px;
+    border-radius: 6px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #ffffff;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+
+  button:hover { opacity: 0.85; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  button.secondary {
+    background: transparent;
+    color: var(--accent);
+  }
+
+  .status-line {
+    margin-top: 14px;
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+  }
+
+  .status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ink-faint);
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .status-dot.live { background: var(--critical); animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  #chartWrap {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  svg#chart {
+    display: block;
+    min-width: 100%;
+    height: 220px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    font-size: 0.8rem;
+    color: var(--ink-muted);
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .legend .swatch {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+  }
+
+  .stat-tile {
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: var(--surface);
+  }
+
+  .stat-tile .stat-label {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-faint);
+    margin-bottom: 4px;
+  }
+
+  .stat-tile .stat-value {
+    font-family: "SF Mono", monospace;
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .stat-tile .stat-sub {
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    margin-top: 2px;
+  }
+
+  .stat-tile.good .stat-value { color: var(--good); }
+  .stat-tile.bad .stat-value { color: var(--critical); }
+
+  .hint {
+    color: var(--ink-faint);
+    font-size: 0.8rem;
+    margin-top: 6px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Live Metronome &amp; Timing Trainer</h1>
+  <p class="subtitle">Click grid + live mic onset detection, compared directly against the metronome's real click times &mdash; no offline processing, no AI.</p>
+</header>
+
+<main>
+
+  <section class="panel">
+    <h2>Setup</h2>
+    <div class="controls-row">
+      <div>
+        <label for="bpmInput">Target BPM</label>
+        <input type="number" id="bpmInput" min="20" max="400" step="1" value="80">
+      </div>
+      <div>
+        <label for="toleranceInput">Tolerance (ms)</label>
+        <input type="number" id="toleranceInput" min="5" max="200" step="5" value="30">
+      </div>
+      <div style="align-self:flex-end;">
+        <button id="startBtn">Start</button>
+        <button id="stopBtn" class="secondary" disabled>Stop</button>
+      </div>
+    </div>
+    <div class="status-line">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText" class="cond">Idle &mdash; click Start to arm the metronome and request microphone access.</span>
+    </div>
+    <p class="hint">Microphone access is requested only when you click Start. The stream is released when you click Stop.</p>
+    <p class="hint"><strong>Use headphones.</strong> The onset detector reacts to any percussive transient it hears, including the metronome click itself if it leaks out of speakers into the mic &mdash; headphones keep the click track out of the mic's signal so only your strokes are detected.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Live Timing Chart</h2>
+    <div id="chartWrap">
+      <svg id="chart" viewBox="0 0 1000 220" preserveAspectRatio="none"></svg>
+    </div>
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--good);"></span>on time (within tolerance)</span>
+      <span><span class="swatch" style="background:var(--critical);"></span>off tempo (rushing above baseline, dragging below)</span>
+      <span><span class="swatch" style="background:var(--ink-faint);"></span>metronome click grid</span>
+      <span><span class="swatch" style="background:var(--ink-faint);opacity:0.4;"></span>internal sub-beat grid (auto-detected, not audible)</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Session Summary (rule-based, computed locally)</h2>
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-tile">
+        <div class="stat-label">Beats Played</div>
+        <div class="stat-value" id="statBeats">&mdash;</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">On Time</div>
+        <div class="stat-value" id="statOnTime">&mdash;</div>
+        <div class="stat-sub" id="statOnTimePct"></div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">Off Tempo</div>
+        <div class="stat-value" id="statOffTempo">&mdash;</div>
+        <div class="stat-sub" id="statOffTempoPct"></div>
+      </div>
+      <div class="stat-tile good">
+        <div class="stat-label">Longest On-Time Streak</div>
+        <div class="stat-value" id="statOnStreak">&mdash;</div>
+        <div class="stat-sub" id="statOnStreakTime"></div>
+      </div>
+      <div class="stat-tile bad">
+        <div class="stat-label">Longest Off-Tempo Streak</div>
+        <div class="stat-value" id="statOffStreak">&mdash;</div>
+        <div class="stat-sub" id="statOffStreakTime"></div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">Average Deviation</div>
+        <div class="stat-value" id="statAvgDev">&mdash;</div>
+        <div class="stat-sub" id="statBias"></div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">Consistency (std dev)</div>
+        <div class="stat-value" id="statStdDev">&mdash;</div>
+        <div class="stat-sub">lower is steadier</div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------------------------------------------------------------------
+  // DOM refs
+  // ---------------------------------------------------------------------
+  const bpmInput = document.getElementById('bpmInput');
+  const toleranceInput = document.getElementById('toleranceInput');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  const svg = document.getElementById('chart');
+  const chartWrap = document.getElementById('chartWrap');
+
+  // ---------------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------------
+  let audioCtx = null;
+  let micStream = null;
+  let micSource = null;
+  let processorNode = null;
+
+  let running = false;
+  let bpm = 80;
+  let toleranceMs = 30;
+  let intervalSec = 60 / bpm;
+
+  // Scheduler state (look-ahead)
+  const SCHEDULE_AHEAD_TIME = 0.1;   // seconds: how far ahead we schedule clicks
+  const SCHEDULER_INTERVAL_MS = 25;  // how often the scheduler loop runs (setTimeout is fine here
+                                      // because it only *checks* the clock; actual audio timing
+                                      // uses audioCtx.currentTime, not the timer firing time)
+  let nextClickTime = 0;   // audioCtx time (seconds) of the next unscheduled click
+  let schedulerTimer = null;
+  let clickTimes = [];     // all scheduled click times (audioCtx seconds), chronological
+
+  // Onset detection state
+  const REFRACTORY_MS = 90;
+  let lastOnsetTime = -Infinity;   // in audioCtx seconds
+  let energyHistory = [];          // rolling recent RMS energy values
+  const ENERGY_HISTORY_LEN = 30;   // ~ frames of history for adaptive baseline
+  const ONSET_MULTIPLIER = 1.8;    // spike must exceed avg-recent-energy * multiplier
+  const MIN_ABS_ENERGY = 0.01;     // floor so silence doesn't trigger on tiny relative spikes
+
+  // Detected onsets, each: { time: audioCtxSeconds, nearestClick, deviationMs, withinTolerance }
+  let onsets = [];
+
+  // Subdivision auto-detection state (konnakol-style sub-beat playing, e.g. 2
+  // strokes per beat). Mirrors timing_analysis.py's detect_subdivision_windowed():
+  // infers strokes-per-beat from a TRAILING WINDOW of recent onset-to-onset gaps
+  // (not the whole history), with hysteresis before switching, so it can track a
+  // subdivision that genuinely changes mid-session. No manual input. The
+  // metronome still only *sounds* at the base beat rate — this only changes what
+  // internal grid we match onsets against.
+  let onsetTimeHistory = [];  // raw onset times (audioCtx seconds), used only for subdivision inference
+  let currentSubdivision = 1; // strokes per beat currently believed to be in effect
+
+  // Chart layout
+  const CHART_W = 1000, CHART_H = 220, BASELINE_Y = 110;
+  const PIXELS_PER_SEC = 60; // horizontal scale for live scroll
+  let sessionStartTime = 0; // audioCtx time at session start (t=0 on chart)
+
+  // ---------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------
+  function setStatus(text, live) {
+    statusText.textContent = text;
+    statusDot.classList.toggle('live', !!live);
+  }
+
+  function clearChart() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+  }
+
+  function svgEl(tag, attrs) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  // Map an audioCtx-relative session time (seconds since session start) to chart x.
+  function timeToX(tSec) {
+    return 20 + tSec * PIXELS_PER_SEC;
+  }
+
+  function drawBaseline() {
+    const line = svgEl('line', {
+      x1: 0, x2: CHART_W, y1: BASELINE_Y, y2: BASELINE_Y,
+      stroke: 'var(--hairline)', 'stroke-width': 1
+    });
+    svg.appendChild(line);
+  }
+
+  function drawClickTick(clickTime) {
+    const x = timeToX(clickTime - sessionStartTime);
+    const tick = svgEl('line', {
+      x1: x, x2: x, y1: BASELINE_Y - 6, y2: BASELINE_Y + 6,
+      stroke: 'var(--ink-faint)', 'stroke-width': 1.5
+    });
+    svg.appendChild(tick);
+    autoExpandViewbox(x);
+  }
+
+  // Internal (non-audible) sub-beat grid tick — smaller/dimmer than the main
+  // audible-beat tick, drawn only so the finer grid that deviations are being
+  // measured against is visible. No sound is generated for these.
+  function drawSubTick(t) {
+    const x = timeToX(t - sessionStartTime);
+    const tick = svgEl('line', {
+      x1: x, x2: x, y1: BASELINE_Y - 3, y2: BASELINE_Y + 3,
+      stroke: 'var(--ink-faint)', 'stroke-width': 1, 'stroke-opacity': 0.4
+    });
+    svg.appendChild(tick);
+    autoExpandViewbox(x);
+  }
+
+  function drawOnsetDot(onset) {
+    const x = timeToX(onset.nearestClick - sessionStartTime);
+    // deviation sign: positive (late) plots below baseline, negative (early) above
+    const clamped = Math.max(-100, Math.min(100, onset.deviationMs));
+    const y = BASELINE_Y + (clamped / 100) * 90;
+    const color = onset.withinTolerance ? 'var(--good)' : 'var(--critical)';
+    const dot = svgEl('circle', { cx: x, cy: y, r: 5, fill: color, 'fill-opacity': 0.85 });
+    svg.appendChild(dot);
+    autoExpandViewbox(x);
+  }
+
+  function autoExpandViewbox(x) {
+    if (x + 40 > CHART_W) {
+      const newW = x + 60;
+      // Set explicit pixel width (not just viewBox) so the SVG's rendered
+      // box actually grows past its wrapper and overflow-x:auto produces a
+      // real scrollbar, instead of rescaling old content to keep fitting a
+      // fixed-width element.
+      svg.setAttribute('viewBox', `0 0 ${newW} ${CHART_H}`);
+      svg.setAttribute('width', newW);
+      svg.setAttribute('height', CHART_H);
+
+      // Stick to the live edge only if the user was already viewing it —
+      // if they've manually scrolled back to review earlier playing, don't
+      // yank them back to the current moment.
+      const wasNearRightEdge =
+        chartWrap.scrollLeft + chartWrap.clientWidth >= chartWrap.scrollWidth - 80;
+      if (wasNearRightEdge) {
+        chartWrap.scrollLeft = chartWrap.scrollWidth;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Look-ahead scheduler
+  // ---------------------------------------------------------------------
+  function scheduleClick(time) {
+    // Create a short click sound at the precise audioCtx time.
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.frequency.value = 1000;
+    osc.type = 'square';
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(0.3, time + 0.001);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.03);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(time);
+    osc.stop(time + 0.04);
+
+    clickTimes.push(time);
+    drawClickTick(time);
+
+    // Visual-only: draw the internal sub-beat grid ticks between this click and
+    // the next one, at the currently-detected subdivision. This does NOT add any
+    // audio — the click generator above still only fires at the base beat rate.
+    if (currentSubdivision > 1) {
+      for (let k = 1; k < currentSubdivision; k++) {
+        drawSubTick(time + (k * intervalSec) / currentSubdivision);
+      }
+    }
+  }
+
+  function schedulerLoop() {
+    if (!running) return;
+    // Schedule every click whose time falls within the look-ahead window.
+    while (nextClickTime < audioCtx.currentTime + SCHEDULE_AHEAD_TIME) {
+      scheduleClick(nextClickTime);
+      nextClickTime += intervalSec;
+    }
+    schedulerTimer = setTimeout(schedulerLoop, SCHEDULER_INTERVAL_MS);
+  }
+
+  // ---------------------------------------------------------------------
+  // Onset detection + matching
+  // ---------------------------------------------------------------------
+  function computeRMS(samples) {
+    let sum = 0;
+    for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
+    return Math.sqrt(sum / samples.length);
+  }
+
+  function processAudioFrame(samples, frameAudioTime) {
+    const energy = computeRMS(samples);
+
+    // Adaptive baseline = average of recent energy history (excludes current frame).
+    let avgRecent = 0;
+    if (energyHistory.length > 0) {
+      let s = 0;
+      for (let i = 0; i < energyHistory.length; i++) s += energyHistory[i];
+      avgRecent = s / energyHistory.length;
+    }
+
+    const threshold = Math.max(avgRecent * ONSET_MULTIPLIER, MIN_ABS_ENERGY);
+    const sinceLastOnsetMs = (frameAudioTime - lastOnsetTime) * 1000;
+
+    if (energy > threshold && sinceLastOnsetMs > REFRACTORY_MS) {
+      registerOnset(frameAudioTime);
+      lastOnsetTime = frameAudioTime;
+    }
+
+    // Update rolling history AFTER threshold check (uses only past frames as baseline).
+    energyHistory.push(energy);
+    if (energyHistory.length > ENERGY_HISTORY_LEN) energyHistory.shift();
+  }
+
+  // Faithful JS port of timing_analysis.py's detect_subdivision_windowed().
+  // Unlike a global detector run once over the whole history, this looks only
+  // at a TRAILING WINDOW of the most recent `window` gaps, so it can track a
+  // subdivision that genuinely changes mid-session (e.g. straight playing,
+  // then a passage with 2 strokes per beat) instead of being stuck with
+  // whatever fit the entire history best.
+  //
+  // For each candidate subdivision n (strokes per beat), checks what fraction
+  // of the gaps in that trailing window land within tolerance_pct of
+  // (beat_interval / n), then picks the SMALLEST n whose fit isn't meaningfully
+  // worse (within 10 percentage points) than the best-fitting candidate in
+  // that window — Occam's razor, so straight playing doesn't get misread as a
+  // higher subdivision just because a larger n can trivially "explain" noisy
+  // gaps too.
+  //
+  // Hysteresis: only actually switches away from currentValue if the new
+  // candidate's fit beats currentValue's own fit (in this window) by at least
+  // hysteresisMargin (0.15 = 15 percentage points). Otherwise keeps
+  // currentValue. This prevents flickering between adjacent subdivisions on
+  // ordinary human timing variance within one window.
+  //
+  // minOnsets guards the very first detection: below that many onsets total we
+  // don't trust the gap pattern yet, so we keep currentValue (defaults to 1).
+  // Once the window itself doesn't yet have enough gaps (min(4, window)), we
+  // also keep currentValue rather than resetting.
+  function detectSubdivision(onsetTimes, targetBpm, currentValue, candidates, tolerancePct, minOnsets, window, hysteresisMargin) {
+    candidates = candidates || [1, 2, 3, 4, 5, 6];
+    tolerancePct = tolerancePct === undefined ? 15.0 : tolerancePct;
+    minOnsets = minOnsets === undefined ? 5 : minOnsets;
+    window = window === undefined ? 8 : window;
+    hysteresisMargin = hysteresisMargin === undefined ? 0.15 : hysteresisMargin;
+    currentValue = currentValue === undefined ? 1 : currentValue;
+
+    if (onsetTimes.length < minOnsets) return currentValue;
+
+    const beatInterval = 60.0 / targetBpm;
+    const allGaps = [];
+    for (let i = 0; i < onsetTimes.length - 1; i++) {
+      allGaps.push(onsetTimes[i + 1] - onsetTimes[i]);
+    }
+    if (allGaps.length === 0) return currentValue;
+
+    const minWindow = Math.min(4, window);
+    const windowGaps = allGaps.slice(Math.max(0, allGaps.length - window));
+    if (windowGaps.length < minWindow) return currentValue;
+
+    const fits = {};
+    for (let ci = 0; ci < candidates.length; ci++) {
+      const n = candidates[ci];
+      const subInterval = beatInterval / n;
+      const tol = subInterval * (tolerancePct / 100);
+      let count = 0;
+      for (let gi = 0; gi < windowGaps.length; gi++) {
+        if (Math.abs(windowGaps[gi] - subInterval) <= tol) count++;
+      }
+      fits[n] = count / windowGaps.length;
+    }
+
+    let bestFit = -Infinity;
+    for (let ci = 0; ci < candidates.length; ci++) {
+      const n = candidates[ci];
+      if (fits[n] > bestFit) bestFit = fits[n];
+    }
+
+    // candidates is ascending, so the first one within 10 points of the best is
+    // the smallest qualifying n.
+    let candidateN = null;
+    for (let ci = 0; ci < candidates.length; ci++) {
+      const n = candidates[ci];
+      if (fits[n] >= bestFit - 0.10) { candidateN = n; break; }
+    }
+    if (candidateN === null) return currentValue;
+
+    const currentFit = fits[currentValue] !== undefined ? fits[currentValue] : 0;
+    if (candidateN !== currentValue && fits[candidateN] >= currentFit + hysteresisMargin) {
+      return candidateN;
+    }
+    return currentValue;
+  }
+
+  function registerOnset(onsetTime) {
+    // Nearest-grid matching: the click grid is evenly spaced and known analytically
+    // (first click at firstClickTime, every intervalSec seconds thereafter), so we
+    // compute the nearest grid point directly rather than scanning clickTimes —
+    // scanning would wrongly clamp onsets that arrive before the *next* click has
+    // been scheduled yet (clicks are only pushed into clickTimes shortly before
+    // they fire, per the look-ahead scheduler), which would misclassify early
+    // onsets as late.
+    //
+    // The grid itself is now sub-beat-aware: konnakol-style subdivided playing
+    // (e.g. 2 strokes per beat) is inferred live from the onset history
+    // (detectSubdivision, above) and matched against internal expected times at
+    // every intervalSec/n position — not just the audible beat clicks. The
+    // metronome audio is unaffected; this only changes what onsets are compared
+    // against.
+    if (clickTimes.length === 0) return;
+    const firstClickTime = clickTimes[0];
+
+    onsetTimeHistory.push(onsetTime);
+    currentSubdivision = detectSubdivision(onsetTimeHistory, bpm, currentSubdivision);
+
+    const subIntervalSec = intervalSec / currentSubdivision;
+    let k = Math.round((onsetTime - firstClickTime) / subIntervalSec);
+    if (k < 0) k = 0;
+    const nearest = firstClickTime + k * subIntervalSec;
+    const deviationMs = (onsetTime - nearest) * 1000; // positive = late, negative = early
+    const withinTolerance = Math.abs(deviationMs) <= toleranceMs;
+
+    const onset = {
+      time: onsetTime,
+      nearestClick: nearest,
+      deviationMs,
+      withinTolerance,
+      subdivision: currentSubdivision
+    };
+    onsets.push(onset);
+    drawOnsetDot(onset);
+    updateSummary();
+  }
+
+  // ---------------------------------------------------------------------
+  // Rule-based summary statistics
+  // ---------------------------------------------------------------------
+  function updateSummary() {
+    const total = onsets.length;
+    document.getElementById('statBeats').textContent = total;
+
+    if (total === 0) {
+      document.getElementById('statOnTime').textContent = '—';
+      document.getElementById('statOffTempo').textContent = '—';
+      document.getElementById('statOnTimePct').textContent = '';
+      document.getElementById('statOffTempoPct').textContent = '';
+      document.getElementById('statOnStreak').textContent = '—';
+      document.getElementById('statOffStreak').textContent = '—';
+      document.getElementById('statOnStreakTime').textContent = '';
+      document.getElementById('statOffStreakTime').textContent = '';
+      document.getElementById('statAvgDev').textContent = '—';
+      document.getElementById('statBias').textContent = '';
+      document.getElementById('statStdDev').textContent = '—';
+      return;
+    }
+
+    let onTimeCount = 0;
+    let sumDev = 0;
+    let sumSqDev = 0;
+    let sumAbsDevPct = 0;
+
+    // Streak tracking, both by time (for the UI) and by beat index.
+    let curOnStreak = 0, curOffStreak = 0;
+    let curOnStreakStart = null, curOffStreakStart = null;
+    let curOffStreakStartIdx = -1, curOffStreakAbsPctSum = 0;
+    let bestOnStreak = 0, bestOffStreak = 0;
+    let bestOnStreakRange = null, bestOffStreakRange = null;
+    let worstOffStreak = null; // { startBeat, endBeat, avgDeviationPct }
+
+    for (let i = 0; i < total; i++) {
+      const o = onsets[i];
+      sumDev += o.deviationMs;
+      sumSqDev += o.deviationMs * o.deviationMs;
+      const devPct = 100 * Math.abs(o.deviationMs) / (intervalSec * 1000);
+      sumAbsDevPct += devPct;
+
+      if (o.withinTolerance) {
+        onTimeCount++;
+        if (curOnStreak === 0) curOnStreakStart = o.time;
+        curOnStreak++;
+        if (curOnStreak > bestOnStreak) {
+          bestOnStreak = curOnStreak;
+          bestOnStreakRange = [curOnStreakStart, o.time];
+        }
+        curOffStreak = 0;
+        curOffStreakStart = null;
+        curOffStreakStartIdx = -1;
+        curOffStreakAbsPctSum = 0;
+      } else {
+        if (curOffStreak === 0) {
+          curOffStreakStart = o.time;
+          curOffStreakStartIdx = i;
+          curOffStreakAbsPctSum = 0;
+        }
+        curOffStreak++;
+        curOffStreakAbsPctSum += devPct;
+        if (curOffStreak > bestOffStreak) {
+          bestOffStreak = curOffStreak;
+          bestOffStreakRange = [curOffStreakStart, o.time];
+          worstOffStreak = {
+            startBeat: curOffStreakStartIdx,
+            endBeat: i,
+            avgDeviationPct: curOffStreakAbsPctSum / curOffStreak
+          };
+        }
+        curOnStreak = 0;
+        curOnStreakStart = null;
+      }
+    }
+
+    const offTempoCount = total - onTimeCount;
+    const avgDev = sumDev / total;
+    const variance = (sumSqDev / total) - (avgDev * avgDev);
+    const stdDev = Math.sqrt(Math.max(0, variance));
+    const avgAbsDevPct = sumAbsDevPct / total;
+    // Approximate consistency in BPM terms: express the ms std-dev as a
+    // fraction of the beat interval, scaled onto the target BPM.
+    const stdDevBpm = bpm * (stdDev / 1000) / intervalSec;
+
+    document.getElementById('statOnTime').textContent = onTimeCount;
+    document.getElementById('statOnTimePct').textContent = (100 * onTimeCount / total).toFixed(1) + '%';
+    document.getElementById('statOffTempo').textContent = offTempoCount;
+    document.getElementById('statOffTempoPct').textContent = (100 * offTempoCount / total).toFixed(1) + '%';
+
+    document.getElementById('statOnStreak').textContent = bestOnStreak;
+    document.getElementById('statOffStreak').textContent = bestOffStreak;
+    document.getElementById('statOnStreakTime').textContent = bestOnStreakRange
+      ? `${(bestOnStreakRange[0] - sessionStartTime).toFixed(1)}s – ${(bestOnStreakRange[1] - sessionStartTime).toFixed(1)}s`
+      : '';
+    document.getElementById('statOffStreakTime').textContent = bestOffStreakRange
+      ? `${(bestOffStreakRange[0] - sessionStartTime).toFixed(1)}s – ${(bestOffStreakRange[1] - sessionStartTime).toFixed(1)}s`
+      : '';
+
+    document.getElementById('statAvgDev').textContent = (avgDev >= 0 ? '+' : '') + avgDev.toFixed(1) + ' ms';
+    let biasLabel = 'balanced';
+    if (avgDev > 5) biasLabel = 'dragging (late bias)';
+    else if (avgDev < -5) biasLabel = 'rushing (early bias)';
+    document.getElementById('statBias').textContent = biasLabel;
+
+    document.getElementById('statStdDev').textContent = stdDev.toFixed(1) + ' ms';
+  }
+
+  // ---------------------------------------------------------------------
+  // Mic capture via ScriptProcessorNode
+  // (Chosen over AudioWorkletNode for this static single-file build: worklet
+  // modules require loading a separate script via addModule(), which cannot
+  // be done from an inline string without a Blob URL workaround, and that
+  // extra indirection is harder to verify statically without a live browser.
+  // ScriptProcessorNode is deprecated but universally supported and keeps
+  // this file dependency-free and single-file.)
+  // ---------------------------------------------------------------------
+  function startMicProcessing(stream) {
+    micSource = audioCtx.createMediaStreamSource(stream);
+    // Smaller buffer = finer timing resolution. At 2048 samples (~43ms @ 48kHz)
+    // the frame-stamping error alone would rival the +/-30ms default tolerance;
+    // 512 samples (~10.7ms @ 48kHz) keeps that error well under typical tolerances
+    // while still giving the refractory window (~90ms) several frames to work with.
+    const bufferSize = 512;
+    processorNode = audioCtx.createScriptProcessor(bufferSize, 1, 1);
+    processorNode.onaudioprocess = function (e) {
+      const input = e.inputBuffer.getChannelData(0);
+      // onaudioprocess fires *after* the buffer has been captured, so
+      // audioCtx.currentTime already points past the end of this buffer.
+      // Stamp the frame at the time its samples actually started, not the
+      // callback-firing time, to avoid a constant positive (late) bias.
+      const frameStartTime = audioCtx.currentTime - (bufferSize / audioCtx.sampleRate);
+      processAudioFrame(input, frameStartTime);
+    };
+    micSource.connect(processorNode);
+    // Must connect to a destination for onaudioprocess to fire in all browsers.
+    // Route through a zero-gain node so we never actually hear our own mic input.
+    const silentGain = audioCtx.createGain();
+    silentGain.gain.value = 0;
+    processorNode.connect(silentGain);
+    silentGain.connect(audioCtx.destination);
+  }
+
+  // ---------------------------------------------------------------------
+  // Start / Stop
+  // ---------------------------------------------------------------------
+  async function start() {
+    bpm = Math.max(20, Math.min(400, parseFloat(bpmInput.value) || 80));
+    toleranceMs = Math.max(1, parseFloat(toleranceInput.value) || 30);
+    intervalSec = 60 / bpm;
+
+    startBtn.disabled = true;
+    setStatus('Requesting microphone access…', false);
+
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      setStatus('Microphone access denied or unavailable: ' + err.message, false);
+      startBtn.disabled = false;
+      return;
+    }
+
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // Reset session state
+    onsets = [];
+    clickTimes = [];
+    energyHistory = [];
+    lastOnsetTime = -Infinity;
+    onsetTimeHistory = [];
+    currentSubdivision = 1;
+    clearChart();
+    drawBaseline();
+    updateSummary();
+
+    sessionStartTime = audioCtx.currentTime;
+    nextClickTime = audioCtx.currentTime + 0.05;
+
+    startMicProcessing(micStream);
+
+    running = true;
+    schedulerLoop();
+
+    stopBtn.disabled = false;
+    setStatus(`Running at ${bpm} BPM — listening for onsets…`, true);
+  }
+
+  function stop() {
+    running = false;
+    if (schedulerTimer) { clearTimeout(schedulerTimer); schedulerTimer = null; }
+
+    if (processorNode) {
+      processorNode.disconnect();
+      processorNode.onaudioprocess = null;
+      processorNode = null;
+    }
+    if (micSource) { micSource.disconnect(); micSource = null; }
+
+    // Release the mic stream explicitly.
+    if (micStream) {
+      micStream.getTracks().forEach(function (t) { t.stop(); });
+      micStream = null;
+    }
+
+    if (audioCtx) {
+      audioCtx.close();
+      audioCtx = null;
+    }
+
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    setStatus('Stopped. Mic released. Session summary below.', false);
+    updateSummary();
+  }
+
+  startBtn.addEventListener('click', start);
+  stopBtn.addEventListener('click', stop);
+
+  // Initial chart render
+  drawBaseline();
+})();
+</script>
+
+</body>
+</html>
