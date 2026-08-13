@@ -885,6 +885,16 @@
 
     try {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      // Mobile Safari (and some Android browsers) can hand back a context in
+      // 'suspended' state here — the user-gesture activation from the Start
+      // tap doesn't reliably survive the await on getUserMedia's permission
+      // prompt above. A suspended context's currentTime never advances, so
+      // the scheduler loop and mic processing both silently do nothing.
+      // resume() re-anchors on this handler's own gesture and is a no-op if
+      // the context was already running.
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
 
       // Reset session state
       onsets = [];
