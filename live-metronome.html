@@ -290,6 +290,7 @@
       <div style="align-self:flex-end;">
         <button id="startBtn">Start</button>
         <button id="stopBtn" class="secondary" disabled>Stop</button>
+        <button id="resetBtn" class="secondary">Reset</button>
       </div>
     </div>
     <div class="status-line">
@@ -368,6 +369,7 @@
   const stopBtn = document.getElementById('stopBtn');
   const statusDot = document.getElementById('statusDot');
   const statusText = document.getElementById('statusText');
+  const resetBtn = document.getElementById('resetBtn');
   const svg = document.getElementById('chart');
   const chartWrap = document.getElementById('chartWrap');
 
@@ -860,29 +862,36 @@
       return;
     }
 
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    // Reset session state
-    onsets = [];
-    clickTimes = [];
-    energyHistory = [];
-    lastOnsetTime = -Infinity;
-    onsetTimeHistory = [];
-    currentSubdivision = 1;
-    clearChart();
-    drawBaseline();
-    updateSummary();
+      // Reset session state
+      onsets = [];
+      clickTimes = [];
+      energyHistory = [];
+      lastOnsetTime = -Infinity;
+      onsetTimeHistory = [];
+      currentSubdivision = 1;
+      clearChart();
+      drawBaseline();
+      updateSummary();
 
-    sessionStartTime = audioCtx.currentTime;
-    nextClickTime = audioCtx.currentTime + 0.05;
+      sessionStartTime = audioCtx.currentTime;
+      nextClickTime = audioCtx.currentTime + 0.05;
 
-    startMicProcessing(micStream);
+      startMicProcessing(micStream);
 
-    running = true;
-    schedulerLoop();
+      running = true;
+      schedulerLoop();
 
-    stopBtn.disabled = false;
-    setStatus(`Running at ${bpm} BPM — listening for onsets…`, true);
+      stopBtn.disabled = false;
+      setStatus(`Running at ${bpm} BPM — listening for onsets…`, true);
+    } catch (err) {
+      // Audio graph setup failed after the mic was already granted — release
+      // it explicitly so it doesn't stay hot with no UI path to stop it.
+      stop();
+      setStatus('Failed to start audio processing: ' + err.message, false);
+    }
   }
 
   function stop() {
@@ -913,8 +922,38 @@
     updateSummary();
   }
 
+  // ---------------------------------------------------------------------
+  // Reset (clears accumulated session data without touching mic/click state)
+  // ---------------------------------------------------------------------
+  function resetSession() {
+    onsets = [];
+    onsetTimeHistory = [];
+    currentSubdivision = 1;
+
+    clearChart();
+    svg.setAttribute('viewBox', `0 0 ${CHART_W} ${CHART_H}`);
+    svg.removeAttribute('width');
+    svg.removeAttribute('height');
+    chartWrap.scrollLeft = 0;
+
+    // If a session is live, re-anchor the chart's t=0 to now so newly
+    // scheduled clicks/onsets draw from the left edge again. clickTimes and
+    // the audio graph are left untouched — the metronome keeps running.
+    if (running) {
+      sessionStartTime = audioCtx.currentTime;
+    }
+
+    drawBaseline();
+    updateSummary();
+    setStatus(
+      running ? `Running at ${bpm} BPM — listening for onsets… (session data reset)` : 'Session data reset.',
+      running
+    );
+  }
+
   startBtn.addEventListener('click', start);
   stopBtn.addEventListener('click', stop);
+  resetBtn.addEventListener('click', resetSession);
 
   // Initial chart render
   drawBaseline();
