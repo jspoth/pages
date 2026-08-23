@@ -1,0 +1,190 @@
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 0 24px 80px;
+  color: #333;
+  line-height: 1.7;
+}
+
+nav {
+  position: sticky;
+  top: 0;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid #eee;
+  padding: 14px 0;
+  margin-bottom: 48px;
+  z-index: 100;
+}
+nav a { margin-right: 20px; color: #555; text-decoration: none; font-size: 0.9em; }
+nav a:hover { color: #2980b9; }
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: #2980b9;
+  color: #fff !important;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.75em;
+  letter-spacing: 0.04em;
+  margin-right: 24px;
+  text-decoration: none !important;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.logo:hover { background: #1f6391; text-decoration: none !important; }
+
+a { color: #2980b9; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+code {
+  background: #f4f4f4;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+pre {
+  background: #f4f4f4;
+  padding: 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.88em;
+  line-height: 1.6;
+}
+
+ol, ul { padding-left: 20px; }
+li { margin-bottom: 8px; }
+.subtitle { color: #666; margin-top: 0; }
+
+#nav-toggle { display: none; }
+.nav-hamburger { display: none; }
+#nav-collapse-toggle { display: none; } /* desktop-only, shown below */
+
+/* Desktop: persistent left sidebar instead of a top bar -- the top bar
+   kept overflowing/squeezing as more projects got added. Mobile keeps the
+   existing collapsible top bar untouched (see the max-width query below). */
+@media (min-width: 641px) {
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 200px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    align-content: flex-start;
+    padding: 20px 16px;
+    margin-bottom: 0;
+    border-bottom: none;
+    border-right: 1px solid #eee;
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+  /* flex-wrap + per-item flex-basis is what lets some items (logo, page
+     links) each force their own full-width row, while others (contact,
+     theme toggle) stay natural-width and share a row -- all without
+     touching nav.js's DOM order, just CSS `order` to reshuffle it. */
+  nav .logo { flex: 0 0 100%; margin-right: 0; margin-bottom: 10px; }
+  nav #nav-collapse-toggle {
+    display: block;
+    order: 0;
+    flex: 0 0 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #999;
+    font-size: 0.85em;
+    text-align: left;
+    padding: 2px 0 14px;
+    margin: 0;
+  }
+  nav #nav-collapse-toggle:hover { color: #2980b9; }
+  nav #contact-nav {
+    order: 1;
+    flex: 0 0 auto;
+    margin-right: 10px;
+    width: auto;
+    padding: 0;
+    font-size: 0.88em;
+  }
+  nav #theme-toggle {
+    order: 2;
+    flex: 0 0 auto;
+    /* nav.js sets margin-left inline -- !important is the only way an
+       external stylesheet can win against that. */
+    margin: 0 !important;
+  }
+  nav a:not(.logo):not(#contact-nav) {
+    order: 3;
+    flex: 0 0 100%;
+    margin-right: 0;
+    margin-top: 14px;
+    width: 100%;
+    padding: 8px 0;
+    font-size: 0.88em;
+  }
+  /* divider between the contact/theme row and the page links -- lives on
+     the first page link so it spans the full sidebar width regardless of
+     how wide the contact/theme row happens to be. */
+  nav a:not(.logo):not(#contact-nav):nth-of-type(2) {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #eee;
+  }
+
+  nav, body { transition: width 0.15s ease, margin-left 0.15s ease; }
+  body { margin: 0 0 0 200px; max-width: 1060px; }
+
+  /* Collapsed: icon-only rail -- just the logo and the expand toggle.
+     Everything else (contact, theme, page links) hides rather than
+     shrinking to icons, since there's no icon set for the project list. */
+  [data-nav="collapsed"] nav { width: 56px; padding: 20px 8px; }
+  [data-nav="collapsed"] nav .logo { flex-basis: auto; margin-bottom: 8px; }
+  [data-nav="collapsed"] nav #nav-collapse-toggle {
+    flex-basis: auto;
+    text-align: center;
+    padding: 4px 0;
+    border: none;
+  }
+  [data-nav="collapsed"] nav a:not(.logo),
+  [data-nav="collapsed"] nav #theme-toggle {
+    display: none;
+  }
+  [data-nav="collapsed"] body { margin-left: 56px; }
+}
+
+@media (max-width: 640px) {
+  nav {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 10px 0;
+  }
+  .logo { order: 0; margin-right: auto; }
+  .nav-hamburger {
+    order: 1;
+    display: inline-block;
+    cursor: pointer;
+    font-size: 1.3em;
+    padding: 2px 8px;
+  }
+  nav button { order: 2; }
+  nav a:not(.logo) {
+    order: 3;
+    display: none;
+    width: 100%;
+    padding: 8px 0;
+    margin-right: 0;
+    font-size: 0.9em;
+    border-bottom: 1px solid #eee;
+  }
+  #nav-toggle:checked ~ a:not(.logo) { display: block; }
+}

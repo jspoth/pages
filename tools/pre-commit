@@ -1,0 +1,15 @@
+#!/bin/sh
+# Source of truth for the pre-commit hook -- .git/hooks/ isn't tracked by
+# git, so this file lives here and tools/install-hooks.sh copies it into
+# place. Re-run install-hooks.sh if this file changes.
+#
+# Only ever touches/stages TRACKED html files and the three known hashed-
+# asset filename patterns -- never a blind `git add -A`, since this
+# directory has untracked/WIP pages that must never get force-staged into
+# a commit (see hash_assets.py's docstring for why).
+set -e
+
+python3 tools/hash_assets.py
+
+git add -- nav.*.js common.*.css dark.*.css 2>/dev/null || true
+git add -u -- '*.html'
