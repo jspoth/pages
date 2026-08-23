@@ -7,9 +7,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Jay — Senior / Staff Platform Engineer — SRE</title>
-  <meta name="description" content="Senior / Staff Platform Engineer with 19 years in software engineering and 7.5 years in SRE. Projects: AI Cost Optimizer, Blast Radius Analyzer, Multi-Region DR, EKS Platform." />
+  <meta name="description" content="Senior / Staff Platform Engineer with 19 years in software engineering and 7.5 years in SRE. Projects: AI Cost Optimizer, LLM Request Router, Blast Radius Analyzer, Multi-Region DR, EKS Platform." />
   <meta property="og:title" content="Jay — Senior / Staff Platform Engineer" />
-  <meta property="og:description" content="Senior / Staff Platform Engineer with 19 years in software engineering and 7.5 years in SRE. Projects: AI Cost Optimizer, Blast Radius Analyzer, Multi-Region DR, EKS Platform." />
+  <meta property="og:description" content="Senior / Staff Platform Engineer with 19 years in software engineering and 7.5 years in SRE. Projects: AI Cost Optimizer, LLM Request Router, Blast Radius Analyzer, Multi-Region DR, EKS Platform." />
   <meta property="og:url" content="https://jspoth.com" />
   <meta property="og:type" content="website" />
   <link rel="canonical" href="https://jspoth.com" />
@@ -291,12 +291,13 @@
 
   <!-- INTRO: full width -->
   <div class="intro">
-    <p class="dateline">Last updated: August 11, 2026</p>
+    <p class="dateline">Last updated: August 21, 2026</p>
     <h1> <a href="https://www.linkedin.com/in/jspoth/" target="_blank" rel="noopener">Jay</a> - Senior / Staff Platform Engineer</h1>
     <p class="experience">19 years in software engineering with 7.5 years focused on SRE, observability, incident response, and platform reliability.
       Open to senior or staff SRE / Platform Engineering roles — remote or SF Bay Area.</p>
     <p> Recent Projects: </p>
     <ul class="projects-list">
+      <li><a href="#model-router">LLM Request Router</a></li>
       <li><a href="#cost-optimizer">AI-Powered Cloud Cost Optimizer</a></li>
       <li><a href="#blast-radius">Deployment Blast Radius Analysis</a></li>
       <li><a href="#dr">Multi-Region Disaster Recovery</a></li>
@@ -382,6 +383,39 @@
       <div class="layer green">
         <div class="layer-title">DynamoDB · S3</div>
         <div class="layer-body">findings · full report JSON</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 2.5: LLM Request Router -->
+  <div id="model-router" class="section">
+    <div>
+      <h2>LLM Request Router</h2>
+      <p class="tagline">Classifies every prompt by task, routes cheap turns free, hands coding/review/design to a live Claude Code session.</p>
+      <p>
+        A CLI classifies each prompt into one of seven tasks and routes it: light tasks go to Groq first, falling back to Gemini and OpenRouter only on error; review/design/coding are hard-excluded from the free tier and always dispatch to a resumable Claude Code session instead — coding gated behind edit approval, review/design read-only.
+        <a href="model-router.html">How it's routed →</a>
+      </p>
+    </div>
+    <div class="diagram">
+      <div class="diagram-label">Request Router</div>
+      <div class="layer amber">
+        <div class="layer-title">Classify</div>
+        <div class="layer-body">LLM classifier &middot; keyword fallback</div>
+      </div>
+      <div class="flow-arrow">↓</div>
+      <div class="layer blue">
+        <div class="layer-title">Light tasks</div>
+        <div class="layer-body">Groq &rarr; Gemini &rarr; OpenRouter<br>fixed order, cooldowns</div>
+      </div>
+      <div class="layer red" style="margin-top: 3px;">
+        <div class="layer-title">Protected tasks</div>
+        <div class="layer-body">Claude Code &middot; resumable session<br>coding: approval-gated</div>
+      </div>
+      <div class="flow-arrow">↓</div>
+      <div class="layer green">
+        <div class="layer-title">Handoff</div>
+        <div class="layer-body">light &harr; deep context summaries</div>
       </div>
     </div>
   </div>
@@ -498,7 +532,6 @@
 
   <div id="contact" class="contact-section">
     <p class="contact-heading">Contact</p>
-    <p class="contact-sub">Open to senior or staff SRE / Platform Engineering roles — remote or SF Bay Area.</p>
     <div class="contact-grid">
       <div class="contact-item">
         <span class="contact-label">Email</span>

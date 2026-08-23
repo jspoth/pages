@@ -64,6 +64,102 @@ li { margin-bottom: 8px; }
 
 #nav-toggle { display: none; }
 .nav-hamburger { display: none; }
+#nav-collapse-toggle { display: none; } /* desktop-only, shown below */
+
+/* Desktop: persistent left sidebar instead of a top bar -- the top bar
+   kept overflowing/squeezing as more projects got added. Mobile keeps the
+   existing collapsible top bar untouched (see the max-width query below). */
+@media (min-width: 641px) {
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 200px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    align-content: flex-start;
+    padding: 20px 16px;
+    margin-bottom: 0;
+    border-bottom: none;
+    border-right: 1px solid #eee;
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+  /* flex-wrap + per-item flex-basis is what lets some items (logo, page
+     links) each force their own full-width row, while others (contact,
+     theme toggle) stay natural-width and share a row -- all without
+     touching nav.js's DOM order, just CSS `order` to reshuffle it. */
+  nav .logo { flex: 0 0 100%; margin-right: 0; margin-bottom: 10px; }
+  nav #nav-collapse-toggle {
+    display: block;
+    order: 0;
+    flex: 0 0 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #999;
+    font-size: 0.85em;
+    text-align: left;
+    padding: 2px 0 14px;
+    margin: 0;
+  }
+  nav #nav-collapse-toggle:hover { color: #2980b9; }
+  nav #contact-nav {
+    order: 1;
+    flex: 0 0 auto;
+    margin-right: 10px;
+    width: auto;
+    padding: 0;
+    font-size: 0.88em;
+  }
+  nav #theme-toggle {
+    order: 2;
+    flex: 0 0 auto;
+    /* nav.js sets margin-left inline -- !important is the only way an
+       external stylesheet can win against that. */
+    margin: 0 !important;
+  }
+  nav a:not(.logo):not(#contact-nav) {
+    order: 3;
+    flex: 0 0 100%;
+    margin-right: 0;
+    margin-top: 14px;
+    width: 100%;
+    padding: 8px 0;
+    font-size: 0.88em;
+  }
+  /* divider between the contact/theme row and the page links -- lives on
+     the first page link so it spans the full sidebar width regardless of
+     how wide the contact/theme row happens to be. */
+  nav a:not(.logo):not(#contact-nav):nth-of-type(2) {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #eee;
+  }
+
+  nav, body { transition: width 0.15s ease, margin-left 0.15s ease; }
+  body { margin: 0 0 0 200px; max-width: 1060px; }
+
+  /* Collapsed: icon-only rail -- just the logo and the expand toggle.
+     Everything else (contact, theme, page links) hides rather than
+     shrinking to icons, since there's no icon set for the project list. */
+  [data-nav="collapsed"] nav { width: 56px; padding: 20px 8px; }
+  [data-nav="collapsed"] nav .logo { flex-basis: auto; margin-bottom: 8px; }
+  [data-nav="collapsed"] nav #nav-collapse-toggle {
+    flex-basis: auto;
+    text-align: center;
+    padding: 4px 0;
+    border: none;
+  }
+  [data-nav="collapsed"] nav a:not(.logo),
+  [data-nav="collapsed"] nav #theme-toggle {
+    display: none;
+  }
+  [data-nav="collapsed"] body { margin-left: 56px; }
+}
 
 @media (max-width: 640px) {
   nav {

@@ -1,7 +1,9 @@
-// Sets theme before first paint to prevent flash
+// Sets theme + nav-collapsed state before first paint to prevent flash
 (function () {
   var t = localStorage.getItem('theme') || 'dark';
   document.documentElement.setAttribute('data-theme', t);
+  var n = localStorage.getItem('navCollapsed') === '1' ? 'collapsed' : 'expanded';
+  document.documentElement.setAttribute('data-nav', n);
   var icon = document.createElement('link');
   icon.rel = 'icon'; icon.type = 'image/svg+xml'; icon.href = '/favicon.svg';
   document.head.appendChild(icon);
@@ -15,14 +17,24 @@ function toggleTheme() {
   if (btn) btn.textContent = isDark ? '🌙' : '☀️';
 }
 
+function toggleNavCollapsed() {
+  var collapsed = document.documentElement.getAttribute('data-nav') === 'collapsed';
+  document.documentElement.setAttribute('data-nav', collapsed ? 'expanded' : 'collapsed');
+  localStorage.setItem('navCollapsed', collapsed ? '0' : '1');
+  var btn = document.getElementById('nav-collapse-toggle');
+  if (btn) btn.textContent = collapsed ? '❮' : '❯';
+}
+
+// Home first, then projects newest-added first.
 var NAV_LINKS = [
-  { href: '/',                    label: 'EKS Platform'          },
+  { href: '/',                    label: 'Home'                  },
+  { href: '/model-router.html',   label: 'LLM Router'            },
+  { href: '/music.html',          label: 'AI for Music'          },
   { href: '/blast-radius.html',   label: 'Blast Radius Analyzer' },
   { href: '/cost-optimizer.html', label: 'Cost Optimizer'        },
   { href: '/chat.html',           label: 'Cost Insights'         },
   { href: '/dr.html',             label: 'DR'                    },
-  { href: '/lessons.html',        label: 'Observations'          },
-  { href: '/music.html',          label: 'AI for Music'          },
+  { href: '/lessons.html',        label: 'Where AI Got It Wrong' },
 ];
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -38,6 +50,15 @@ document.addEventListener('DOMContentLoaded', function () {
   logo.className = 'logo';
   logo.textContent = 'JP';
   nav.appendChild(logo);
+
+  // Desktop-only sidebar collapse toggle (hidden on mobile via CSS,
+  // where the hamburger below already handles show/hide)
+  var collapseBtn = document.createElement('button');
+  collapseBtn.id = 'nav-collapse-toggle';
+  collapseBtn.onclick = toggleNavCollapsed;
+  collapseBtn.setAttribute('aria-label', 'Toggle sidebar');
+  collapseBtn.textContent = document.documentElement.getAttribute('data-nav') === 'collapsed' ? '❯' : '❮';
+  nav.appendChild(collapseBtn);
 
   // Checkbox toggle — CSS-only mobile menu trigger
   var toggle = document.createElement('input');

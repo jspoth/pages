@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="/nav.js"></script>
+  <link rel="stylesheet" href="/common.css">
+  <link rel="stylesheet" href="/dark.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLM Request Router — Task Classification, Free-Tier Fallback, Claude Code Escalation</title>
+  <meta name="description" content="A CLI that classifies every prompt by task, routes cheap/free-tier turns through Groq, Gemini, and OpenRouter with automatic fallback, and hands coding/review/design work to a shared Claude Code session — with context passed across the boundary." />
+  <meta property="og:title" content="LLM Request Router — Task Classification, Free-Tier Fallback, Claude Code Escalation" />
+  <meta property="og:description" content="A CLI that classifies every prompt by task, routes cheap/free-tier turns through Groq, Gemini, and OpenRouter with automatic fallback, and hands coding/review/design work to a shared Claude Code session — with context passed across the boundary." />
+  <meta property="og:url" content="https://jspoth.com/model-router" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://jspoth.com/model-router" />
+  <style>
+    h1 { font-size: 2rem; margin-bottom: 4px; }
+    h2 { font-size: 1.3rem; margin-top: 40px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+    h3 { font-size: 1rem; margin-top: 24px; color: #555; }
+    blockquote {
+      border-left: 4px solid #ddd;
+      margin: 16px 0;
+      padding: 8px 16px;
+      color: #555;
+      font-style: italic;
+    }
+    .label {
+      display: inline-block;
+      font-size: 0.75em;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .label-free { background: #e8f5e9; color: #2e7d32; }
+    .label-protected { background: #fdeaea; color: #a83232; }
+    .pipeline {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 20px 0;
+      font-size: 0.9em;
+    }
+    .pipeline-step {
+      background: #f4f4f4;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-weight: 500;
+    }
+    .pipeline-arrow { color: #aaa; font-size: 1.2em; }
+    .callout {
+      background: #fff8e1;
+      border-left: 4px solid #f9a825;
+      padding: 10px 16px;
+      margin: 20px 0;
+      border-radius: 0 4px 4px 0;
+      font-size: 0.95em;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.9em;
+      margin: 16px 0;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid #eee;
+    }
+    th { color: #888; font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.04em; }
+    mark { background: #fff3b0; color: #333; border-radius: 3px; padding: 0 2px; }
+    [data-theme="dark"] mark { background: #7f4a00; color: #ffe6a8; }
+  </style>
+</head>
+<body>
+
+  <nav></nav>
+
+  <h1>LLM Request Router</h1>
+  <p style="font-size: 0.85em; color: #999;">Last updated: August 2026</p>
+  <p class="subtitle">A CLI in front of several LLM providers. Every prompt gets classified by task, routed to the cheapest backend that's allowed to serve it, and — for coding, review, and design work — handed off to a persistent Claude Code session instead of a one-shot API call.</p>
+
+  <pre>Tasks:        chat, search, ideation, feedback, review, design, coding
+Free tier:    Groq → Gemini → OpenRouter, fixed order, sticky-first + cooldowns
+Protected:    review / design / coding never touch the free tier
+Deep backend: Claude Code CLI, resumable session, approval-gated edits</pre>
+
+  <h2>Why</h2>
+  <p>
+    This project was inspired after reading Glean's <a href="https://www.glean.com/blog/waldo-launch">Waldo launch post</a>. This got me thinking about how I could write my own model router that selects models based on the task I'm working on. I primarily use Claude Code from the CLI. My searches range from coding-specific questions to queries like how to best prepare for my interview at company X. That is why I came up with some predefined categories for my prompts and decided to use free models for non-coding tasks.
+  </p>
+  <h3>Why OpenRouter</h3>
+  <p>
+    OpenRouter was the starting point, for model choice — one API in front of a wide catalog, so classification
+    could eventually route to whichever model actually fit a task instead of being locked to one provider's lineup.
+  </p>
+  <h3>Why Groq and Gemini</h3>
+  <p>
+    When testing with OpenRouter I kept getting 402s — insufficient credits, a consequence of running on a free
+    account. I was looking for popular models that have sufficient tokens/request limits, which is how Groq and
+    Gemini ended up in the mix. Groq is tried first on every call, and stays first as long as it keeps succeeding —
+    in practice that means Groq ends up serving nearly everything, with Gemini and OpenRouter sitting as pure
+    failover for whenever it actually fails or hits a quota. Details below.
+  </p>
+
+  <h2>Example session</h2>
+  <p>
+    The <code>[routed -> ...]</code> line is the router printing its decision — task, tier, classifier confidence,
+    and source — before the call is made. It deliberately carries no model id: at that point the free-tier chain
+    hasn't picked a provider yet, so a model name there would just be a placeholder. The
+    <code>[served by model=...]</code> line after it is the real answer, printed once <code>complete()</code>
+    returns:
+  </p>
+  <pre>python main.py
+Model Router — type a prompt (or 'exit' / 'quit' to stop).
+&gt; gm my name is jp
+[routed -&gt; task=chat tier=free confidence=95% source=llm]
+
+[served by model=openai/gpt-oss-20b]
+Good morning, JP! How can I help you today?
+
+&gt; what is best restaurant in sf
+[routed -&gt; task=search tier=free confidence=95% source=llm]
+
+[served by model=openai/gpt-oss-20b]
+A table of SF restaurant picks by cuisine (French, Asian, Mediterranean, American,
+Greek, bakery) with signature dishes, price ranges, and reservation tips. [...]
+
+&gt; where is delhi
+[routed -&gt; task=search tier=free confidence=95% source=llm]
+
+[served by model=openai/gpt-oss-20b]
+Delhi is the capital territory of India, on the banks of the Yamuna River in the
+north. The National Capital Territory (NCT) includes New Delhi (seat of government)
+and surrounding districts.
+
+&gt; write a code for fizbuzz ?
+[routed -&gt; task=coding tier=standard confidence=99% source=llm]
+
+[claude code wants to run: Bash {'command': 'cat -A fizzbuzz.java 2>/dev/null | head -20; ...'}]
+Approve? [y/N]: n
+[served by model=claude-sonnet-5]
+There's already a working FizzBuzz implementation at `fizzbuzz.java`:
+
+```java
+public class fizzbuzz {
+    public static void main(String[] args) {
+        for (int i = 1; i &lt;= 100; i++) {
+            if (i % 15 == 0) {
+                System.out.println("FizzBuzz");
+            } else if (i % 3 == 0) {
+                System.out.println("Fizz");
+            } else if (i % 5 == 0) {
+                System.out.println("Buzz");
+            } else {
+                System.out.println(i);
+            }
+        }
+    }
+}
+```
+
+It prints 1-100, "Fizz" for multiples of 3, "Buzz" for multiples of 5, "FizzBuzz"
+for multiples of 15. Want me to run it or make changes?
+</pre>
+  <h2>How it works</h2>
+  <div class="pipeline">
+    <div class="pipeline-step">Classify</div>
+    <div class="pipeline-arrow">→</div>
+    <div class="pipeline-step">Resolve task → tier → model</div>
+    <div class="pipeline-arrow">→</div>
+    <div class="pipeline-step">Free-tier chain <em>or</em> Claude Code</div>
+  </div>
+  <p>
+    Every prompt is classified into one of seven tasks by an LLM call (Claude Haiku by default), which also judges
+    whether the prompt continues an already-open context — more on that below. If the classifier itself fails or
+    comes back malformed, a whole-word keyword matcher takes over as a fallback so the router degrades instead of
+    breaking. The (task, tier) pair resolves to a concrete model id; tier defaults per-task rather than globally, so
+    a bare "chat" prompt defaults to free while "coding" defaults to standard.
+  </p>
+
+  <img src="router.png" alt="Model Router flowchart: user prompt goes to an LLM classifier call, then a decision on whether the task is protected (review/design/coding) routes it to Claude Code with a resumable session (approval-gated for coding, read-only plan mode for review/design); otherwise tier is resolved and, if free, the prompt goes through a fixed Groq/Gemini/OpenRouter chain (Groq tried first, sticky as long as it succeeds) with per-provider cooldowns, escalating to a one-off Claude Code call on a cheap model if every provider is exhausted, or to a one-off standard/premium Claude Code call if a non-free tier was requested." style="width: 100%; max-width: 380px; display: block; margin: 24px auto; border: 1px solid #e0e0e0; border-radius: 8px;" />
+
+  <h2>Task tiers and the protected-task rule</h2>
+  <table>
+    <tr><th>Task</th><th>Free tier</th><th>Default</th></tr>
+    <tr><td>chat, search, ideation, feedback</td><td><span class="label label-free">allowed</span></td><td>free</td></tr>
+    <tr><td>review, design, coding</td><td><span class="label label-protected">blocked</span></td><td>standard</td></tr>
+  </table>
+  <p>
+    review, design, and coding are hard-excluded from the free tier — not a soft preference, a rule enforced in
+    tier resolution itself, so no config typo or keyword collision can accidentally route a refactor to a free
+    model. Those three always dispatch to Claude Code instead, drawing on a Claude Code subscription's usage
+    rather than pay-as-you-go token billing.
+  </p>
+
+  <h2>Free-tier fallback chain</h2>
+  <p>
+    Groq is the primary LLM and in case of any errors other LLMs are called into action. Gemini and OpenRouter are fallback options.
+  </p>
+  <h3>Layer 1: fixed order, sticky-first</h3>
+  <p>
+    Providers are tried in the same declared order every single call — Groq, then Gemini, then OpenRouter — no
+    rotation, no counter. Groq stays first as long as it keeps succeeding; only cooldown (layer 2) moves a call
+    off it, and the instant its cooldown clears, the very next call tries Groq first again. In practice this means
+    Groq serves nearly everything while it's healthy, with Gemini and OpenRouter sitting as pure failover capacity
+    — confirmed live: a whole session's worth of turns landed on Groq with zero calls ever reaching the other two.
+  </p>
+  <h3>Layer 2: cooldown, using whatever signal the provider actually gives</h3>
+  <p>
+    A provider that fails is put in cooldown and skipped entirely by subsequent calls instead of being retried
+    immediately — not tried as a last resort, filtered out before the fixed-order loop even runs. Cooldown length
+    depends on what actually went wrong, not one flat guess for everything. A rate limit honors the provider's own
+    <code>Retry-After</code> value when it sends one (Gemini instead nests its own <code>retryDelay</code> field in
+    the error body, since it doesn't send the header at all), plus a small jitter so concurrent calls don't all
+    retry in lockstep. A 402 (insufficient credits) gets a coarse one-hour cooldown since there's no time-based
+    signal for that at all — it needs a balance top-up, not a wait. A bare network timeout gets the same
+    default-plus-jitter as an unsignaled rate limit, so a hung provider isn't paying its full timeout again on
+    every single call. Cooldown state is shared between the free-tier and classifier chains — they hit the same
+    API keys — and persisted to disk, so a process restart doesn't rediscover OpenRouter's hour-long 402 cooldown
+    via another wasted real call.
+  </p>
+  <p>
+    Escalation to Claude Code (on a cheap model, Haiku) happens two ways: every provider in the chain is tried and
+    fails, or — a distinct, zero-attempt case — every provider is already known to be in cooldown before the call
+    starts, and the chain doesn't bother attempting a doomed call at all. Either way the caller sees the same
+    outcome, but the log line differs (<code>all providers cooling down</code> vs. an actual per-provider failure
+    trail).
+  </p>
+  <p>
+    Shape of it, simplified (real thing has jitter and persistence on top):
+  </p>
+  <pre>class FallbackChain:
+    def __init__(self, providers):
+        self.providers = providers          # [(backend, model_id), ...], fixed order -> layer 1
+
+    def complete(self, messages):
+        for backend, model_id in self.providers:
+            if backend.in_cooldown():
+                continue
+            try:
+                return backend.call(model_id, messages)          # success -> return, stays first next call
+            except ProviderError as exc:                          # fall through to the next provider
+                backend.cooldown_for(seconds_from(exc))           # layer 2: real signal or a guess
+        raise AllProvidersExhausted()</pre>
+
+  <h2>Claude Code as the deep backend</h2>
+  <p>
+    review and design run the Claude Code CLI in read-only plan mode — nothing to approve, no tool loop that can
+    touch disk. coding runs in a mode where every Edit/Write/Bash call is gated behind an approval callback; the
+    CLI's own permission hooks surface pending denials, which the router loops through one at a time until the
+    caller approves or declines. A single coding session persists across turns via the CLI's <code>--resume</code>,
+    so "now add tests for that" on turn three still has turns one and two in scope — the router never duplicates
+    that history locally, Claude Code owns it.
+  </p>
+  <p>
+    A per-call spend cap (<code>--max-budget-usd</code>) sits on every Claude Code call regardless of mode, since
+    those calls draw on a subscription with its own usage limits — a single runaway agentic loop shouldn't be able
+    to silently eat an unbounded share of it.
+  </p>
+
+  <h2>Context handoff across the boundary</h2>
+  <p>
+    Light and deep tasks keep separate context, but a conversation routinely crosses between them — you ideate,
+    then ask for the design, then ask it to implement. Two summaries carry state across that boundary rather than
+    dropping it:
+  </p>
+  <ul>
+    <li><strong>Light → deep:</strong> when a protected task follows a light one, accumulated chat/snapshot context
+      is summarized into a structured Goal / Findings / Decisions / Constraints / Open-questions block and prepended
+      to the first deep-session prompt.</li>
+    <li><strong>Deep → light:</strong> when a light task follows a protected one, the open Claude Code session is
+      asked to summarize its own state in one extra billed call — there's no local copy of its history to summarize
+      instead — and that summary feeds subsequent light-task turns until the next switch.</li>
+  </ul>
+  <p>
+    The classifier also flags whether a prompt <em>continues</em> an already-open context, so "did you write
+    ratelimiter.py?" — which reads as a plain chat message in isolation — can still get routed back into a live
+    coding session instead of answered blind. That override only ever promotes a light task into a protected one,
+    never the reverse, and only above a confidence threshold raised after a live run showed a stale session getting
+    reattached to an unrelated question at the original, lower bar.
+  </p>
+
+  <h2>Secret scrubbing</h2>
+  <p>
+    Everything written to the log file or to on-disk session state passes through a scrub filter first — patterns
+    for OpenRouter, Anthropic, GitHub, and AWS key shapes, plus generic bearer tokens. It's attached at the log
+    <em>handler</em> level rather than the root logger, since a logger-level filter only sees records logged
+    directly on that logger and misses ones from child loggers that merely propagate up to it — confirmed live,
+    the logger-level version let a secret through. The rule exists because of a real incident earlier in this
+    project: an API key printed in plaintext via a careless shell command.
+  </p>
+
+  <h3>Left open</h3>
+  <ul>
+    <li>Claude Code sometimes drops into its own planning workflow — writing a plan file to disk and asking whether
+      to proceed — even for what should be a simple, stateless conversational answer. Needs a lighter mode for
+      those calls rather than the default agentic one.</li>
+    <li>The keyword fallback misses common coding phrasings (e.g. "write a ... program in &lt;language&gt;"),
+      sending them down the free-tier path when the LLM classifier isn't available to catch them.</li>
+  </ul>
+
+  <h2>Caveats</h2>
+  <p>
+    <strong>Character-count compaction, not real tokenization:</strong> rolling chat history compacts once it
+    crosses a character threshold, a cheap proxy rather than an actual token count. Good enough to keep a session
+    from growing unbounded, not a precise budget.
+  </p>
+  <p>
+    <strong>No scoped approval:</strong> every mutating Claude Code action is confirmed individually — there's no
+    "trust this session" or remembered approval yet, so a long coding turn with several edits means several prompts.
+  </p>
+
+</body>
+</html>
