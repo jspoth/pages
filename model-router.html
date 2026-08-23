@@ -293,6 +293,46 @@ for multiples of 15. Want me to run it or make changes?
     project: an API key printed in plaintext via a careless shell command.
   </p>
 
+  <h2>Metrics, extrapolated from logs already being written</h2>
+  <p>
+    To understand if my approach is saving any money or not, I leveraged the responses from API calls and logged them to a log. Every provider's API response already includes token usage and — for Claude Code — real
+    per-call cost, computed by the provider itself. Wrote a simple script that parses the logs to generate a small summary of usage.
+  </p>
+  <p>What's actually in the response, confirmed live rather than assumed:</p>
+  <pre>{
+  "choices": [{"message": {"content": "OK"}, "finish_reason": "stop"}],
+  "usage": {
+    "prompt_tokens": 76,
+    "completion_tokens": 10,
+    "total_tokens": 86
+  }
+}
+// Groq/Gemini/OpenRouter (OpenAI-compatible shape) -- backends/_openai_compat.py
+// only ever extracted choices[0].message.content, discarding "usage" entirely.
+
+{
+  "result": "OK",
+  "session_id": "2565ab84-...",
+  "total_cost_usd": 0.0091797,
+  "duration_ms": 1282,
+  "usage": { "input_tokens": 10, "output_tokens": 41, "...": "..." }
+}
+// Claude Code CLI's --output-format json -- backends/claude_code.py only
+// ever kept "result" and "session_id", discarding cost and duration.</pre>
+  <p>
+    Both now get logged as a normal <code>logger.info(...)</code> line next to the success/latency line that was
+    already there — a provider-and-token-count line from <code>_openai_compat.py</code>, and a
+    <code>cost_usd=...</code> field appended to <code>claude_code.py</code>'s existing success log.
+  </p>
+  <pre>$ python tools/metrics_report.py
+Provider      Requests  Failures   p95 latency      Tokens    Cost ($)
+----------------------------------------------------------------------
+groq               148        33         3.15s        7873      0.0000
+gemini              60        52         7.99s           0      0.0000
+openrouter          45        37       311.32s           0      0.0000
+claude               2         0         8.25s           0      0.3560
+----------------------------------------------------------------------
+TOTAL              255       122                      7873      0.3560</pre>
   <h3>Left open</h3>
   <ul>
     <li>Claude Code sometimes drops into its own planning workflow — writing a plan file to disk and asking whether
