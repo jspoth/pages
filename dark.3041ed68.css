@@ -34,6 +34,7 @@
 [data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3 { color: #e0e0e0; }
 [data-theme="dark"] p { color: #bbb; }
 [data-theme="dark"] .projects-list li { color: #ccc; }
+[data-theme="dark"] .project-group-label { color: #777; }
 [data-theme="dark"] code { background: #2d2d2d; color: #e0e0e0; }
 [data-theme="dark"] pre { background: #2d2d2d; color: #e0e0e0; }
 [data-theme="dark"] .diagram { background: #252525; border-color: #444; }
