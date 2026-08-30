@@ -1,0 +1,62 @@
+{
+  "last_updated": "2026-08-30",
+  "season": "2026-27",
+  "competitions": [
+    {
+      "name": "Math Kangaroo",
+      "dates": "Reg opens Sep 15, 2026 · Exam Mar 18, 2027",
+      "registration_url": "https://mathkangaroo.org/mks/registration/",
+      "sample_paper_url": "https://mathkangaroo.org/mks/practice/pdf-exams/",
+      "sample_paper_label": "Past papers"
+    },
+    {
+      "name": "MOEMS (Division E, Grades 4-6)",
+      "dates": "5 contests, Nov 2026 - Mar 2027",
+      "registration_url": "https://www.moems.org/pages/register-today",
+      "sample_paper_url": "https://www.moems.org/pages/resources",
+      "sample_paper_label": "Sample contest"
+    },
+    {
+      "name": "Noetic Learning Math Contest",
+      "dates": "Fall: reg by ~Oct 22, exam Nov · Spring: reg by ~Mar 11, exam Apr",
+      "registration_url": "https://www.noetic-learning.com/mathcontest/registration.jsp",
+      "sample_paper_url": "https://www.noetic-learning.com/mathcontest/sample.jsp",
+      "sample_paper_label": "Sample problems"
+    },
+    {
+      "name": "Continental Mathematics League (CML)",
+      "dates": "5 meets, Nov 2026 - Mar 2027",
+      "registration_url": "https://www.cmleague.com/product-category/cml/",
+      "sample_paper_url": "https://mathleague.com/index.php/annualcontestinformation/samplecontests",
+      "sample_paper_label": "Sample contests"
+    },
+    {
+      "name": "National Science Bee - Elementary Division",
+      "dates": "Reg opens Oct 5, 2026, team submit by Nov 23, 2026 · Qualifying (ORQE) open Sep 2026 - early May 2027 · Regional Finals ~first weekend of May 2027 for top half of ORQE scorers",
+      "registration_url": "https://www.iacompetitions.com/emssciencebee/",
+      "sample_paper_url": "https://orqe.iac-exams.com/",
+      "sample_paper_label": "Qualifying exam (ORQE) info"
+    },
+    {
+      "name": "STEM4ALL Math Contest (Fremont)",
+      "dates": "Spring 2027 (2027 date TBA)",
+      "registration_url": "https://www.stem-4all.org/event-details-registration/stem4all-math-contest-2026",
+      "sample_paper_url": "https://www.stem-4all.org/event-details-registration/stem4all-math-contest-2026",
+      "sample_paper_label": "Event info"
+    },
+    {
+      "name": "STEM4ALL STEM Challenge (Fremont, Elementary 3-5)",
+      "dates": "Spring 2027 (2027 date TBA)",
+      "registration_url": "https://www.stem-4all.org/event-details-registration/stem-challenge-2026",
+      "sample_paper_url": "https://www.stem-4all.org/event-details-registration/stem-challenge-2026",
+      "sample_paper_label": "Event info"
+    },
+    {
+      "name": "FIRST LEGO League (robotics/STEM)",
+      "dates": "2026-27 season, local tournaments winter/spring",
+      "registration_url": "https://www.firstinspires.org/programs/fll/get-started",
+      "sample_paper_url": "https://www.firstinspires.org/programs/fll/get-started",
+      "sample_paper_label": "Program info"
+    }
+  ]
+}

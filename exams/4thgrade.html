@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="/nav.91603561.js"></script>
+  <link rel="stylesheet" href="/common.6cf8a0b5.css">
+  <link rel="stylesheet" href="/dark.3041ed68.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>4th Grade Math &amp; Science Competitions</title>
+  <meta name="description" content="Math and science competitions a 4th grader can enter — registration links and sample papers." />
+  <meta property="og:title" content="4th Grade Math & Science Competitions" />
+  <meta property="og:description" content="Math and science competitions a 4th grader can enter — registration links and sample papers." />
+  <meta property="og:url" content="https://jspoth.com/exams/4thgrade" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://jspoth.com/exams/4thgrade" />
+  <style>
+    body { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 2rem; margin-bottom: 4px; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; margin-top: 24px; font-size: 0.92em; }
+    th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid #eee; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; }
+    th { text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.08em; color: #999; border-bottom: 1px solid #999; }
+    tr:hover td { background: #fafafa; }
+    td.dates { color: #666; }
+    th:nth-child(1), td:nth-child(1) { width: 24%; }
+    th:nth-child(2), td:nth-child(2) { width: 40%; }
+    th:nth-child(3), td:nth-child(3) { width: 18%; }
+    th:nth-child(4), td:nth-child(4) { width: 18%; }
+  </style>
+</head>
+<body>
+
+  <nav></nav>
+
+  <h1>4th Grade Math &amp; Science Competitions</h1>
+  <p style="font-size: 0.85em; color: #999;">Last updated: August 2026 — 2026–27 season</p>
+  <p class="subtitle">Competitions a 4th grader can enter, with registration links and sample papers.</p>
+
+  <table id="comp-table">
+    <thead>
+      <tr>
+        <th>Competition</th>
+        <th>Key dates</th>
+        <th>Registration</th>
+        <th>Sample paper</th>
+      </tr>
+    </thead>
+    <tbody id="comp-table-body">
+      <tr><td colspan="4">Loading…</td></tr>
+    </tbody>
+  </table>
+
+  <p style="font-size: 0.8em; color: #999; margin-top: 20px;">
+    Dates are best-effort from official sites as of Aug 2026 and can shift — confirm on the registration page before relying on them.
+  </p>
+
+  <script>
+    fetch('exams_dates_4.json')
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        var rows = data.competitions.map(function (c) {
+          return '<tr>' +
+            '<td>' + c.name + '</td>' +
+            '<td class="dates">' + c.dates + '</td>' +
+            '<td><a href="' + c.registration_url + '" target="_blank" rel="noopener">Register</a></td>' +
+            '<td><a href="' + c.sample_paper_url + '" target="_blank" rel="noopener">' + c.sample_paper_label + '</a></td>' +
+            '</tr>';
+        }).join('');
+        document.getElementById('comp-table-body').innerHTML = rows;
+      })
+      .catch(function () {
+        document.getElementById('comp-table-body').innerHTML =
+          '<tr><td colspan="4">Could not load competition data.</td></tr>';
+      });
+  </script>
+
+</body>
+</html>
