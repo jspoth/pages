@@ -3,6 +3,16 @@
   "season": "2026-27",
   "competitions": [
     {
+      "name": "TEST - Sample Alert (remove after testing)",
+      "dates": "Test entry for routine testing only",
+      "registration_url": "https://example.com",
+      "sample_paper_url": "https://example.com",
+      "sample_paper_label": "Test",
+      "milestones": [
+        {"type": "registration_open", "date": "2026-08-30", "time": "13:15"}
+      ]
+    },
+    {
       "name": "Math Kangaroo",
       "dates": "Reg opens Sep 15, 2026 · Exam Mar 18, 2027",
       "registration_url": "https://mathkangaroo.org/mks/registration/",
